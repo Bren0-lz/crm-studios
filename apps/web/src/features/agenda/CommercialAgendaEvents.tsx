@@ -1,4 +1,5 @@
 import type { CommercialEvent } from "@crm/contracts";
+import { CalendarDays, ChevronRight, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 import { timeLabel } from "../../shared/lib/formatting";
 
@@ -12,14 +13,22 @@ export function CommercialAgendaEvents({
     <ul className="day-events-list" aria-label="Eventos comerciais">
       {events.map((event) => (
         <li key={event.id}>
-          <Link to={`/eventos/${event.id}`}>
-            <time dateTime={event.startsAt}>
-              {timeLabel.format(new Date(event.startsAt))}
-            </time>
-            {" · "}
-            {event.name}
+          <Link className="commercial-agenda-event" to={`/eventos/${event.id}`}>
+            <span className="commercial-agenda-event-content">
+              <time dateTime={event.startsAt}>
+                <CalendarDays size={14} aria-hidden="true" />
+                {timeLabel.format(new Date(event.startsAt))}
+              </time>
+              <strong>{event.name}</strong>
+              {event.location && (
+                <small>
+                  <MapPin size={14} aria-hidden="true" />
+                  {event.location}
+                </small>
+              )}
+            </span>
+            <ChevronRight size={16} aria-hidden="true" />
           </Link>
-          {event.location && <small>{event.location}</small>}
         </li>
       ))}
     </ul>
