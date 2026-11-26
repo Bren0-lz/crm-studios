@@ -104,7 +104,7 @@ fonte citada por guia revisa o guia e regenera o `manual-data.json`
 - **Empilhar sobre:** INT2
 - **Dependências:** INT2
 - **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
-- **Status:** TODO
+- **Status:** DONE
 
 ### INT4 — Nomes das permissões das chaves de API dizem o que liberam
 
