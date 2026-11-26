@@ -6,6 +6,11 @@ import { createHash } from "node:crypto";
  */
 export interface TelegramClient {
   sendMessage(chatId: string, text: string): Promise<void>;
+  /**
+   * Nome de usuário do bot (`getMe`), sem o `@`. Opcional: cliente sem ele (ou que falha) só
+   * deixa a tela sem o nome do bot.
+   */
+  getMe?(): Promise<{ username: string }>;
 }
 
 /** Integração ligada: cliente, segredo do webhook e relógio (injetável nos testes). */
@@ -26,34 +31,60 @@ export function createTelegramClient(
   token: string,
   fetchImpl: typeof fetch = fetch,
 ): TelegramClient {
+  /** Chama a Bot API; o erro nunca leva o token (só o texto de `refused` e o status). */
+  async function call(
+    method: string,
+    payload: Record<string, unknown> | null,
+    refused: string,
+  ) {
+    let response: Response;
+    try {
+      response = await fetchImpl(`${TELEGRAM_API}/bot${token}/${method}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload ?? {}),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : "Error";
+      throw new TelegramApiError(
+        name === "TimeoutError"
+          ? "Telegram não respondeu a tempo."
+          : "Falha de rede ao falar com o Telegram.",
+      );
+    }
+    const body = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      description?: string;
+      result?: unknown;
+    } | null;
+    if (!response.ok || body?.ok !== true)
+      throw new TelegramApiError(
+        `${refused} (${response.status}${
+          body?.description ? `: ${body.description}` : ""
+        }).`,
+      );
+    return body.result;
+  }
+
   return {
     async sendMessage(chatId, text) {
-      let response: Response;
-      try {
-        response = await fetchImpl(`${TELEGRAM_API}/bot${token}/sendMessage`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, text }),
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        });
-      } catch (error) {
-        const name = error instanceof Error ? error.name : "Error";
-        throw new TelegramApiError(
-          name === "TimeoutError"
-            ? "Telegram não respondeu a tempo."
-            : "Falha de rede ao falar com o Telegram.",
-        );
-      }
-      const body = (await response.json().catch(() => null)) as {
-        ok?: boolean;
-        description?: string;
-      } | null;
-      if (!response.ok || body?.ok !== true)
-        throw new TelegramApiError(
-          `Telegram recusou a mensagem (${response.status}${
-            body?.description ? `: ${body.description}` : ""
-          }).`,
-        );
+      await call(
+        "sendMessage",
+        { chat_id: chatId, text },
+        "Telegram recusou a mensagem",
+      );
+    },
+    async getMe() {
+      const result = (await call(
+        "getMe",
+        null,
+        "Telegram não informou o bot",
+      )) as { username?: unknown } | null | undefined;
+      const username = result?.username;
+      if (typeof username !== "string" || !/^[A-Za-z0-9_]{5,64}$/.test(username))
+        throw new TelegramApiError("Telegram não informou o nome do bot.");
+      return { username };
     },
   };
 }
