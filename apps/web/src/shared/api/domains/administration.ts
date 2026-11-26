@@ -37,6 +37,7 @@ import type {
   IntegrationKey,
   IntegrationKeyCreated,
   IntegrationKeyInput,
+  McpConnectorStatus,
   TelegramGroupLink,
   TelegramLinkCode,
   TelegramStatus,
@@ -176,6 +177,8 @@ export const administrationApi = {
     request<IntegrationKey>(`/integration-keys/${id}/revoke`, {
       method: "POST",
     }),
+  /** Conector MCP do manual (INT5): ligado ou não e endereço; o token fica na hospedagem. */
+  mcpConnectorStatus: () => request<McpConnectorStatus>("/integrations/mcp"),
   /** Telegram (TG1): situação do usuário logado, código de vínculo e desvincular. */
   telegramStatus: () => request<TelegramStatus>("/integrations/telegram"),
   createTelegramLinkCode: () =>

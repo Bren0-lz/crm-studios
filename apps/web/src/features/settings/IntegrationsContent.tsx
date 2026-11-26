@@ -1,19 +1,21 @@
-import { KeyRound, Send } from "lucide-react";
+import { BookOpen, KeyRound, Send } from "lucide-react";
 import { useLayoutEffect, useRef } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { IntegrationKeysContent } from "./IntegrationKeysContent";
+import { McpConnectorContent } from "./McpConnectorContent";
 import { TelegramIntegrationContent } from "./TelegramIntegrationContent";
 
 const pages = [
   { id: "chaves", label: "Chaves de API", icon: KeyRound },
   { id: "telegram", label: "Telegram", icon: Send },
+  { id: "mcp", label: "Manual MCP", icon: BookOpen },
 ] as const;
 
 export function IntegrationsContent({ busy }: { busy: boolean }) {
   const [params] = useSearchParams();
   const { state } = useLocation();
   const selected =
-    params.get("integracao") === "telegram" ? "telegram" : "chaves";
+    pages.find(({ id }) => id === params.get("integracao"))?.id ?? "chaves";
   const currentLink = useRef<HTMLAnchorElement>(null);
 
   useLayoutEffect(() => {
@@ -49,6 +51,8 @@ export function IntegrationsContent({ busy }: { busy: boolean }) {
       </nav>
       {selected === "telegram" ? (
         <TelegramIntegrationContent />
+      ) : selected === "mcp" ? (
+        <McpConnectorContent />
       ) : (
         <IntegrationKeysContent />
       )}
