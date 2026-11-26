@@ -114,7 +114,7 @@ fonte citada por guia revisa o guia e regenera o `manual-data.json`
 - **Empilhar sobre:** INT3
 - **Dependências:** INT3
 - **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
-- **Status:** TODO
+- **Status:** DONE
 
 ### INT5 — Aba "Manual MCP" em Integrações e guia de conexão
 
