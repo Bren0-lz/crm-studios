@@ -125,6 +125,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /integration-keys": "admin",
   "POST /integration-keys": "admin",
   "POST /integration-keys/:id/revoke": "admin",
+  // Conector MCP do manual (INT5): estado e endereço, sem token.
+  "GET /integrations/mcp": "admin",
   // Telegram (TG1): cada usuário vincula o próprio chat (o perfil é conferido na rota); a
   // configuração e o envio sob demanda são do admin; o webhook é público com segredo.
   "GET /integrations/telegram": "login",

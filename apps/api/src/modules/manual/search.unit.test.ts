@@ -91,6 +91,16 @@ describe("busca nos guias", () => {
     expect(result.guias.length).toBeLessThanOrEqual(8);
     expect(strong(query)).toContain(id);
   });
+  // INT5: guia de conexão do conector MCP (depende da regeneração do manual-data.json).
+  it.each([
+    "conectar o claude ao manual mcp",
+    "manual no claude",
+    "conector mcp",
+  ])("encontra o guia de conexão do Claude ao manual: %s", (query) => {
+    const result = searchGuides(query);
+    expect(result.status).toBe("guias_relacionados");
+    expect(strong(query)).toContain("CF24");
+  });
   it.each([
     ["Como cancelar uma aula?", "AG02"],
     ["trocar minha senha", "CF06"],

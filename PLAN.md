@@ -124,7 +124,7 @@ fonte citada por guia revisa o guia e regenera o `manual-data.json`
 - **Empilhar sobre:** INT4
 - **Dependências:** INT4
 - **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
-- **Status:** TODO
+- **Status:** DONE
 
 ### INT6 — Recibo público mostra o horário no fuso da clínica
 

@@ -1926,6 +1926,22 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* INT5: conector MCP do manual (Configurações › Integrações › Manual MCP). */
+.mcp-connector-section .muted-copy {
+  margin: 0;
+}
+.mcp-connector-section h4 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.mcp-connector-steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-md);
+}
 
 .plans-toolbar {
   flex-wrap: wrap;

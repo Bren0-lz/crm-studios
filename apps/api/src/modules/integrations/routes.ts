@@ -1,10 +1,12 @@
 import {
   type IntegrationKeyCreated,
   integrationKeyInputSchema,
+  type McpConnectorStatus,
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
+import { manualAccessFromEnv, manualEndpoint } from "../manual/access.js";
 import { generateIntegrationToken } from "./tokens.js";
 
 /** Chaves da API externa (Configurações → Integrações): só admin. */
@@ -53,5 +55,16 @@ export function registerIntegrationRoutes({
         );
       return key;
     },
+  );
+
+  // Conector MCP do manual (INT5): só o estado e o endereço; o token fica na hospedagem.
+  const manual = manualAccessFromEnv();
+  const mcpStatus: McpConnectorStatus = manual
+    ? { enabled: true, endpoint: manualEndpoint(manual) }
+    : { enabled: false, endpoint: null };
+  app.get(
+    "/integrations/mcp",
+    { preHandler: authenticate },
+    async () => mcpStatus,
   );
 }

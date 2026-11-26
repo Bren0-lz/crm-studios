@@ -16,13 +16,18 @@ export function manualAccessFromEnv(): ManualAccessConfig | undefined {
   return result.success ? result.data : undefined;
 }
 
+/** Endereço público do conector (também mostrado em Configurações › Integrações). */
+export function manualEndpoint(config: ManualAccessConfig) {
+  return `${config.MCP_PUBLIC_ORIGIN}/api/mcp`;
+}
+
 /** Um token exclusivo do piloto, sem vínculo com usuários, JWT ou banco do CRM. */
 export function createManualAccess(config: ManualAccessConfig) {
   const expected = Buffer.from(config.MCP_ACCESS_TOKEN_SHA256, "hex");
   let windowStart = Date.now();
   let requests = 0;
   return {
-    resource: `${config.MCP_PUBLIC_ORIGIN}/api/mcp`,
+    resource: manualEndpoint(config),
     authenticate(header: string | undefined) {
       if (!header?.startsWith("Bearer ")) return false;
       const token = header.slice(7);
