@@ -77,6 +77,13 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - **Gate:** gate completo, conferência estrita do manual e fluxo de criação, cópia e revogação em desktop e celular.
 - **Status:** DONE
 
+### MCP8 — "Trocar aluno de turma" leva ao guia certo
+
+- **Pedido (26/11/2026):** no MCP em produção, "trocar o aluno de turma" pedia para escolher entre renomear a turma (GR03) e o Telegram (CF18, porque turma ~ grupo). O dono pediu para corrigir a busca.
+- **Escopo:** ajustes gerais no código da busca foram testados e descartados (o peso menor para sinônimo também rebaixava equivalências legítimas, como aula ~ atendimento, e quebrava testes existentes). A tarefa real não tinha guia: o CRM não tem ação de troca. Guia novo GR13 "Trocar um aluno de turma", com os passos verificados do GR11 (cancelar matrícula) e do GR04 (matricular); testes da busca; manual regenerado.
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** DONE
+
 ### Fila INT2–INT6 — correções do teste de Integrações (26/11/2026)
 
 Teste manual em produção (26/11/2026) das Integrações, do Telegram e do MCP. As cinco tarefas
