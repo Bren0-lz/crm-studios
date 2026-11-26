@@ -1,6 +1,6 @@
 # Passo a passo de uso do CRM Organiza Studios
 
-Revisão das fontes: `f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7`
+Revisão das fontes: `d0f2b401f7166b33b363d2f7501db9515beeffae`
 
 Os percursos abaixo foram exercitados na interface de `crm.organizastudios.com` em 24/11/2026, no Chromium, com uma conta de teste e registros fictícios. O menu também foi testado em tamanho de celular. Na Agenda, foram concluídos um agendamento experimental, uma remarcação e um agendamento com plano ativo. A revisão identifica o código usado para conferir as instruções. Cada guia indica as condições que mudam os passos.
 
@@ -18,7 +18,7 @@ Deu certo quando a tela de entrada dá lugar ao painel do CRM. Se o CRM já abri
 **Perguntas:** Como entrar no CRM? | Como faço login? | Como acessar o sistema? | Onde entro no Organiza Studios? | Como faço para entrar no sistema?
 
 **Fontes:**
-- [Tela de entrada](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/auth/LoginPage.tsx)
+- [Tela de entrada](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/auth/LoginPage.tsx)
 
 ## AC03 · Abrir o menu no celular e encontrar uma tela
 
@@ -32,7 +32,7 @@ Se não encontrar um nome, confirme com o administrador se sua conta tem acesso 
 **Perguntas:** Como abrir o menu no celular? | Onde fica o menu no celular? | Como achar os módulos do CRM no celular? | Como encontrar o menu lateral? | O menu sumiu no celular?
 
 **Fontes:**
-- [Menu lateral e botão Abrir menu](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/Shell.tsx)
+- [Menu lateral e botão Abrir menu](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/Shell.tsx)
 
 ## AG02 · Agendar um atendimento individual
 
@@ -49,9 +49,9 @@ Se não encontrar um nome, confirme com o administrador se sua conta tem acesso 
 **Perguntas:** Como agendar um atendimento? | Como marcar um horário para um cliente? | Como agendar uma aula experimental? | Como marcar atendimento na agenda? | Como faço para marcar um atendimento individual? | Por que o serviço está bloqueado no atendimento?
 
 **Fontes:**
-- [Abertura do formulário pela Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaPage.tsx)
-- [Tipo, plano, recursos, data e confirmação do agendamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentForm.tsx)
-- [Teste do agendamento com plano e da remarcação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/e2e/agenda.spec.ts)
+- [Abertura do formulário pela Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaPage.tsx)
+- [Tipo, plano, recursos, data e confirmação do agendamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentForm.tsx)
+- [Teste do agendamento com plano e da remarcação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/e2e/agenda.spec.ts)
 
 ## AG05 · Consultar os detalhes de um atendimento na Agenda
 
@@ -65,8 +65,8 @@ Os dados do cliente disponíveis na janela dependem das permissões da sua conta
 **Perguntas:** Como ver os detalhes de um atendimento? | Onde confiro o horário de um atendimento? | Como saber se uma sessão está agendada? | Como abrir detalhes de um compromisso na agenda?
 
 **Fontes:**
-- [Cartão do atendimento na Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaCard.tsx)
-- [Detalhes do atendimento e dados do cliente](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Cartão do atendimento na Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaCard.tsx)
+- [Detalhes do atendimento e dados do cliente](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
 
 ## AG07 · Remarcar um atendimento
 
@@ -83,10 +83,10 @@ Esse caminho vale quando o botão **Remarcar atendimento** estiver disponível n
 **Perguntas:** Como remarcar um atendimento? | Como reagendar uma consulta? | Como trocar o horário de um atendimento? | Como mudar a data de um agendamento? | Como remarcar uma aula experimental já marcada? | Como mudar o horário de uma sessão?
 
 **Fontes:**
-- [Cartão que abre os detalhes na Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaCard.tsx)
-- [Ação Remarcar atendimento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
-- [Formulário de reagendamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx)
-- [Teste da preservação do atendimento na remarcação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/e2e/agenda.spec.ts)
+- [Cartão que abre os detalhes na Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaCard.tsx)
+- [Ação Remarcar atendimento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Formulário de reagendamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx)
+- [Teste da preservação do atendimento na remarcação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/e2e/agenda.spec.ts)
 
 ## CL01 · Localizar um cliente cadastrado
 
@@ -100,7 +100,7 @@ Se a lista estiver vazia, tente outro dado no mesmo campo. Se houver filtros ati
 **Perguntas:** Como localizar um cliente? | Como buscar um cliente cadastrado? | Como encontrar uma aluna sem mexer em nada? | Onde busco um cliente pelo CPF? | Como pesquisar um cliente pelo telefone? | Como localizar uma aluna sem mexer em nada? | Como encontro o cadastro de um aluno?
 
 **Fontes:**
-- [Busca e filtros de Clientes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientsPage.tsx)
+- [Busca e filtros de Clientes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientsPage.tsx)
 
 ## CL04 · Abrir a ficha de um cliente
 
@@ -114,8 +114,8 @@ O nome do cliente aparece no topo da ficha. As abas disponíveis dependem das pe
 **Perguntas:** Como abro a ficha do cliente? | Como abrir o perfil de um cliente? | Onde fica a ficha de um aluno? | Como ver as abas da ficha do cliente? | Como abrir ficha cliente?
 
 **Fontes:**
-- [Entrada da ficha na lista de Clientes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientsPage.tsx)
-- [Abas da ficha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientRecordTabs.tsx)
+- [Entrada da ficha na lista de Clientes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientsPage.tsx)
+- [Abas da ficha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientRecordTabs.tsx)
 
 ## CL05 · Editar o cadastro de um cliente
 
@@ -130,9 +130,9 @@ Se o formulário apontar campos obrigatórios, complete os campos indicados ante
 **Perguntas:** Como editar um cliente? | Como mudar dados do cadastro do cliente? | Como trocar o apelido de um aluno? | Como corrigir os dados de um cliente? | Como alterar o telefone do cliente? | Como editar um cadastro existente?
 
 **Fontes:**
-- [Ação de edição na lista de Clientes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientsPage.tsx)
-- [Ação de edição na ficha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientDetailPage.tsx)
-- [Formulário de edição e salvamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientModal.tsx)
+- [Ação de edição na lista de Clientes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientsPage.tsx)
+- [Ação de edição na ficha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientDetailPage.tsx)
+- [Formulário de edição e salvamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientModal.tsx)
 
 ## CL13 · Inativar ou reativar um cadastro de cliente
 
@@ -146,8 +146,8 @@ Para reativar, abra a ficha do cliente inativo e clique em **Reativar cliente**.
 **Perguntas:** Como inativar um cliente? | Como reativar um cliente? | Como deixar um cadastro inativo? | Como voltar um cadastro para ativo? | Onde desativo o cadastro de um aluno?
 
 **Fontes:**
-- [Ações e resultado da mudança de situação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientDetailPage.tsx)
-- [Filtro de clientes inativos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientsPage.tsx)
+- [Ações e resultado da mudança de situação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientDetailPage.tsx)
+- [Filtro de clientes inativos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientsPage.tsx)
 
 ## EV01 · Localizar um evento e abrir a sua lista de participantes
 
@@ -159,8 +159,8 @@ Para reativar, abra a ficha do cliente inativo e clique em **Reativar cliente**.
 **Perguntas:** Como abrir um evento? | Como localizar um evento já cadastrado? | Onde vejo os participantes de um evento? | Como abrir a lista de participantes do evento? | Como filtrar eventos por serviço?
 
 **Fontes:**
-- [Lista, filtro por Serviço e atalho Participantes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventsPage.tsx)
-- [Tela de detalhes do evento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventDetailPage.tsx)
+- [Lista, filtro por Serviço e atalho Participantes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventsPage.tsx)
+- [Tela de detalhes do evento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventDetailPage.tsx)
 
 ## EV02 · Cadastrar um evento
 
@@ -176,8 +176,8 @@ Para reativar, abra a ficha do cliente inativo e clique em **Reativar cliente**.
 **Perguntas:** Como cadastrar um evento? | Como criar um evento comercial? | Como adicionar um novo evento? | Onde cadastro um evento? | Como faço para registrar um evento?
 
 **Fontes:**
-- [Lista e ação Novo evento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventsPage.tsx)
-- [Campos e salvamento do evento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventModal.tsx)
+- [Lista e ação Novo evento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventsPage.tsx)
+- [Campos e salvamento do evento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventModal.tsx)
 
 ## EV03 · Editar um evento já cadastrado
 
@@ -193,8 +193,8 @@ A disponibilidade de **Editar** depende das permissões da sua conta.
 **Perguntas:** Como editar um evento? | Como mudar o local de um evento? | Como alterar a data de um evento? | Como corrigir os dados de um evento já cadastrado?
 
 **Fontes:**
-- [Ação Editar na lista de eventos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventsPage.tsx)
-- [Preenchimento e salvamento na edição](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventModal.tsx)
+- [Ação Editar na lista de eventos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventsPage.tsx)
+- [Preenchimento e salvamento na edição](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventModal.tsx)
 
 ## EV05 · Adicionar um participante a um evento existente
 
@@ -210,8 +210,8 @@ A janela informa a origem com que o participante entra no CRM comercial. Contato
 **Perguntas:** Como adicionar um participante ao evento? | Como colocar uma pessoa em um evento já criado? | Onde incluo alguém na lista do evento? | Como cadastrar um participante de evento?
 
 **Fontes:**
-- [Ação de inclusão na tela do evento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventDetailPage.tsx)
-- [Formulário de participante](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventParticipantModal.tsx)
+- [Ação de inclusão na tela do evento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventDetailPage.tsx)
+- [Formulário de participante](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventParticipantModal.tsx)
 
 ## EV06 · Buscar um participante dentro de um evento
 
@@ -226,7 +226,7 @@ O campo de busca aparece quando o evento já tem participantes.
 **Perguntas:** Como buscar um participante de evento? | Como encontrar uma pessoa na lista de participantes? | Onde pesquiso o nome de alguém inscrito no evento? | Como filtrar participantes do evento?
 
 **Fontes:**
-- [Busca, filtro de status e mensagem sem resultados](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventDetailPage.tsx)
+- [Busca, filtro de status e mensagem sem resultados](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventDetailPage.tsx)
 
 ## FI11 · Criar uma conta a receber manual
 
@@ -245,8 +245,8 @@ O lançamento registra o valor a receber. Quando o dinheiro entrar, use **Dar ba
 **Perguntas:** Como criar uma conta a receber? | Como lançar uma receita manual? | Como cadastrar uma cobrança manual? | Como faço um lançamento a receber? | Como adicionar uma conta a receber no financeiro?
 
 **Fontes:**
-- [Abas de Financeiro](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinancePage.tsx)
-- [Formulário de lançamento manual](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinanceClassificationPanel.tsx)
+- [Abas de Financeiro](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinancePage.tsx)
+- [Formulário de lançamento manual](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinanceClassificationPanel.tsx)
 
 ## FI06 · Estornar a baixa de uma parcela paga
 
@@ -264,8 +264,8 @@ A parcela volta a ficar em aberto, o recebimento sai do caixa e o botão **Dar b
 **Perguntas:** Como estornar o recebimento de uma parcela? | Como estornar um pagamento de cliente? | Como desfazer a baixa de uma parcela? | Como cancelar uma baixa no contas a receber? | Como reabrir uma parcela que marquei como paga? | Como estornar parcela paga?
 
 **Fontes:**
-- [Ações da parcela em Contas a receber](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceivablesList.tsx)
-- [Confirmação, motivo obrigatório e efeito do estorno](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReversePaymentModal.tsx)
+- [Ações da parcela em Contas a receber](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Confirmação, motivo obrigatório e efeito do estorno](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReversePaymentModal.tsx)
 
 ## GR04 · Matricular um cliente em uma turma com vaga
 
@@ -282,8 +282,8 @@ Se a escolha mostrar **turma cheia (lista de espera)** ou o botão mudar para **
 **Perguntas:** Como matricular um aluno quando tem vaga? | Como matricular um cliente? | Como colocar um aluno em uma turma com vaga? | Como faço uma matrícula em turma? | Como incluir cliente em turma com vagas livres? | Como matricular um cliente numa turma?
 
 **Fontes:**
-- [Seleção da turma, do cliente e confirmação da matrícula](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupsPage.tsx)
-- [Situação da matrícula nos detalhes da turma](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Seleção da turma, do cliente e confirmação da matrícula](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupsPage.tsx)
+- [Situação da matrícula nos detalhes da turma](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupDetailsModal.tsx)
 
 ## PL04 · Contratar uma sessão avulsa pela ficha do cliente
 
@@ -304,9 +304,9 @@ Se a lista **Plano cadastrado** estiver vazia, confira com quem administra o cat
 **Perguntas:** Como vender uma sessão avulsa para um cliente? | Como fazer um plano avulso na ficha? | Como contratar um plano avulso para um cliente existente? | Como vender atendimento avulso?
 
 **Fontes:**
-- [Ação Plano avulso na ficha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientRecordTabs.tsx)
-- [Janela e registro da contratação avulsa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientPlanModal.tsx)
-- [Campos e ação de criar plano e parcelas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlanForm.tsx)
+- [Ação Plano avulso na ficha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientRecordTabs.tsx)
+- [Janela e registro da contratação avulsa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientPlanModal.tsx)
+- [Campos e ação de criar plano e parcelas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlanForm.tsx)
 
 ## PL11 · Consultar planos e parcelas na ficha do cliente
 
@@ -321,7 +321,7 @@ A exibição das duas abas depende das permissões da sua conta. A ficha mostra 
 **Perguntas:** Como ver os planos e pagamentos do cliente? | Onde vejo as parcelas na ficha do cliente? | Como consultar as contratações de um aluno? | Onde vejo os planos contratados na ficha? | Como ver as cobranças desse cliente?
 
 **Fontes:**
-- [Planos e parcelas na ficha do cliente](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientRecordTabs.tsx)
+- [Planos e parcelas na ficha do cliente](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientRecordTabs.tsx)
 
 ## RL01 · Escolher o período e consultar a visão geral dos relatórios
 
@@ -336,8 +336,8 @@ Se **Atualizar** estiver desativado, confira se as duas datas estão preenchidas
 **Perguntas:** Como consultar relatórios por período? | Como vejo os números do mês? | Como mudar o período nos relatórios? | Como consultar o resumo do mês passado? | Como escolher o intervalo do relatório? | Como ver a visão geral dos relatórios?
 
 **Fontes:**
-- [Atalhos, datas e seções de relatórios](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ReportsPage.tsx)
-- [Navegação entre seções](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ReportTabs.tsx)
+- [Atalhos, datas e seções de relatórios](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ReportsPage.tsx)
+- [Navegação entre seções](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ReportTabs.tsx)
 
 ## AC02 · Sair do CRM e encerrar sessões em outros dispositivos
 
@@ -351,8 +351,8 @@ A tela de entrada volta a aparecer. **Encerrar acessos** também encerra sua ses
 **Perguntas:** Como sair do CRM? | Como desconectar do sistema? | Como sair de todos os dispositivos? | Como encerrar as sessões da minha conta?
 
 **Fontes:**
-- [Menu de usuário e ação Sair](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/Shell.tsx)
-- [Confirmação para encerrar todas as sessões](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/shared/auth/RevokeSessionsButton.tsx)
+- [Menu de usuário e ação Sair](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/Shell.tsx)
+- [Confirmação para encerrar todas as sessões](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/shared/auth/RevokeSessionsButton.tsx)
 
 ## AC04 · Selecionar a filial de trabalho
 
@@ -366,8 +366,8 @@ O seletor aparece quando sua conta tem acesso a pelo menos duas filiais ativas. 
 **Perguntas:** Como trocar de filial? | Onde seleciono a filial ativa? | Como voltar para Todas as filiais?
 
 **Fontes:**
-- [Seletor e condições de exibição](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/BranchSelector.tsx)
-- [Atualização da tela na troca de filial](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/Shell.tsx)
+- [Seletor e condições de exibição](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/BranchSelector.tsx)
+- [Atualização da tela na troca de filial](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/Shell.tsx)
 
 ## AC05 · Abrir a tela de origem de uma notificação
 
@@ -380,8 +380,8 @@ Deu certo quando abre a tela relacionada ao aviso. Por exemplo, **Tarefas comerc
 **Perguntas:** Como abrir uma pendência pelo sino? | Onde vejo as notificações do CRM? | Como abrir uma tarefa comercial vencida pelo sino?
 
 **Fontes:**
-- [Sino e atalhos de pendências](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/Shell.tsx)
-- [Grupos de notificações e destinos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/notification-center.tsx)
+- [Sino e atalhos de pendências](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/Shell.tsx)
+- [Grupos de notificações e destinos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/notification-center.tsx)
 
 ## AC06 · Alterar as preferências de notificações
 
@@ -397,7 +397,7 @@ A alteração vale para a sua conta. Para conferir, abra **Configurar** novament
 **Perguntas:** Como configurar as notificações? | Como desligar o som das notificações? | Como escolher o que aparece no sino?
 
 **Fontes:**
-- [Configuração e salvamento das preferências](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/NotificationSettingsModal.tsx)
+- [Configuração e salvamento das preferências](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/NotificationSettingsModal.tsx)
 
 ## AC07 · Usar o SOS e consultar os serviços de atendimento
 
@@ -411,7 +411,7 @@ Quando o cadastro tem contato de emergência, o SOS mostra o nome e os canais di
 **Perguntas:** Onde fica o SOS? | Como procurar um cliente no SOS? | Onde estão os serviços de atendimento no SOS?
 
 **Fontes:**
-- [Busca de clientes e serviços no SOS](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/shared/components/EmergencyButton.tsx)
+- [Busca de clientes e serviços no SOS](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/shared/components/EmergencyButton.tsx)
 
 ## VG01 · Consultar o resumo do dia e abrir a Agenda
 
@@ -425,7 +425,7 @@ A tela **Agenda** abre no dia atual. O painel pode mostrar atendimentos individu
 **Perguntas:** Onde vejo os horários de hoje? | Como vejo a agenda de hoje pelo painel? | Como abrir a agenda do dia pela Visão geral?
 
 **Fontes:**
-- [Resumo e atalho para a Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/dashboard/DashboardPage.tsx)
+- [Resumo e atalho para a Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/dashboard/DashboardPage.tsx)
 
 ## VG02 · Abrir uma pendência pelo painel inicial
 
@@ -441,8 +441,8 @@ Para **Parcelas vencidas**, confira se o **Financeiro** abriu em **Contas a rece
 **Perguntas:** Como tratar as pendências do painel? | Onde vejo parcelas vencidas na Visão geral? | Como abrir um alerta do painel inicial?
 
 **Fontes:**
-- [Alertas do cabeçalho e suas ações](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/NotificationAlerts.tsx)
-- [Destino do alerta de parcelas vencidas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/notification-center.tsx)
+- [Alertas do cabeçalho e suas ações](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/NotificationAlerts.tsx)
+- [Destino do alerta de parcelas vencidas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/notification-center.tsx)
 
 ## VG03 · Iniciar um atendimento pela Visão geral
 
@@ -456,8 +456,8 @@ O atalho abre o formulário de agendamento. Para concluir o cadastro, siga o gui
 **Perguntas:** Como iniciar um atendimento pelo painel? | Onde fica Novo atendimento na Visão geral? | Como abrir o agendamento a partir da tela inicial?
 
 **Fontes:**
-- [Atalho do painel](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/dashboard/DashboardPage.tsx)
-- [Abertura do formulário de agendamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaPage.tsx)
+- [Atalho do painel](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/dashboard/DashboardPage.tsx)
+- [Abertura do formulário de agendamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaPage.tsx)
 
 ## VG04 · Ver clientes sem retorno e aniversariantes no painel
 
@@ -471,8 +471,8 @@ O atalho abre **Contatos sugeridos**. A lista depende dos clientes e das datas q
 **Perguntas:** Onde vejo aniversariantes no painel? | Como encontro clientes sem retorno na Visão geral? | Como abrir Contatos sugeridos a partir do painel?
 
 **Fontes:**
-- [Bloco de clientes sem retorno](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/dashboard/DashboardPage.tsx)
-- [Bloco de aniversariantes e atalho](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/dashboard/BirthdayDashboardCard.tsx)
+- [Bloco de clientes sem retorno](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/dashboard/DashboardPage.tsx)
+- [Bloco de aniversariantes e atalho](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/dashboard/BirthdayDashboardCard.tsx)
 
 ## VG05 · Consultar pendências de campanhas automáticas pelo painel
 
@@ -487,7 +487,7 @@ Quando o painel mostra **0 pendentes hoje**, a fila do dia está vazia.
 **Perguntas:** Onde vejo as mensagens automáticas pendentes hoje? | Como abro a fila de campanhas automáticas no início? | Como atualizar as pendências de campanhas no painel?
 
 **Fontes:**
-- [Aba de campanhas no painel](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/dashboard/DashboardPage.tsx)
+- [Aba de campanhas no painel](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/dashboard/DashboardPage.tsx)
 
 ## AG01 · Navegar e filtrar a Agenda
 
@@ -502,8 +502,8 @@ Confira o período exibido no alto da agenda. No celular, abra **Filtros** para 
 **Perguntas:** Como navegar na agenda? | Como filtrar a agenda por profissional? | Como mostrar as notas na agenda? | Como trocar a agenda para semana ou mês?
 
 **Fontes:**
-- [Navegação, visualizações e filtros da Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaPage.tsx)
-- [Teste da apresentação dos filtros no celular](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/e2e/agenda-mobile-filters.spec.ts)
+- [Navegação, visualizações e filtros da Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaPage.tsx)
+- [Teste da apresentação dos filtros no celular](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/e2e/agenda-mobile-filters.spec.ts)
 
 ## AG03 · Agendar uma série de atendimentos
 
@@ -519,8 +519,8 @@ Confira o cartão na primeira data e nas datas seguintes. A opção de repetiç�
 **Perguntas:** Como agendar atendimentos recorrentes? | Como marcar o mesmo atendimento em várias semanas?
 
 **Fontes:**
-- [Campos de repetição e confirmação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentForm.tsx)
-- [Visualização das ocorrências na Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaPage.tsx)
+- [Campos de repetição e confirmação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentForm.tsx)
+- [Visualização das ocorrências na Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaPage.tsx)
 
 ## AG04 · Cadastrar um cliente durante um agendamento
 
@@ -534,8 +534,8 @@ O formulário da Agenda permanece aberto com o novo cliente selecionado.
 **Perguntas:** Como cadastrar um cliente sem sair do agendamento? | Onde fica Adicionar cliente na Agenda?
 
 **Fontes:**
-- [Campo Cliente do agendamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentForm.tsx)
-- [Janela de cadastro e retorno à Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentPatientCreateModal.tsx)
+- [Campo Cliente do agendamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentForm.tsx)
+- [Janela de cadastro e retorno à Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentPatientCreateModal.tsx)
 
 ## AG06 · Editar os dados de um atendimento na Agenda
 
@@ -550,8 +550,8 @@ Abra os detalhes para conferir o que ficou salvo. Para mudar data, horário ou p
 **Perguntas:** Como editar um atendimento? | Como alterar a observação de um atendimento? | Como mudar o serviço ou a sala de um atendimento?
 
 **Fontes:**
-- [Ação de edição em Detalhes do atendimento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
-- [Campos, confirmação e validação da edição](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentEditModal.tsx)
+- [Ação de edição em Detalhes do atendimento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Campos, confirmação e validação da edição](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentEditModal.tsx)
 
 ## AG09 · Confirmar presença em um atendimento
 
@@ -565,7 +565,7 @@ O cartão passa a mostrar **Confirmado**. Se precisar conferir, abra os detalhes
 **Perguntas:** Como confirmar a presença de um cliente? | Como marcar o atendimento como confirmado? | Onde confirmo a sessão na Agenda?
 
 **Fontes:**
-- [Ação Confirmar presença e condições](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Ação Confirmar presença e condições](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
 
 ## AG10 · Registrar falta em um atendimento
 
@@ -580,7 +580,7 @@ O atendimento passa para **Não compareceu**. A tela informa que a falta não co
 **Perguntas:** Como registrar falta na agenda? | Como marcar que o cliente não compareceu? | Onde marco falta em um atendimento?
 
 **Fontes:**
-- [Ação e confirmação da ausência](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Ação e confirmação da ausência](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
 
 ## AG11 · Finalizar um atendimento individual
 
@@ -593,7 +593,7 @@ O cartão passa a indicar **Finalizado**. Se a ação estiver desativada, confir
 **Perguntas:** Como finalizar atendimento individual? | Onde marco um atendimento como realizado?
 
 **Fontes:**
-- [Detalhes e ação de finalizar](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Detalhes e ação de finalizar](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
 
 ## AG12 · Agendar reposição a partir de uma falta
 
@@ -607,8 +607,8 @@ O atendimento original continua com a falta registrada. Cada falta pode ter uma 
 **Perguntas:** Como remarcar uma falta na agenda? | Onde agendo reposição para uma falta individual?
 
 **Fontes:**
-- [Detalhes e ações do atendimento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
-- [Formulário de reagendamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx)
+- [Detalhes e ações do atendimento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Formulário de reagendamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx)
 
 ## AG13 · Bloquear um horário de um profissional ou de uma sala
 
@@ -624,8 +624,8 @@ Confira o aviso **Bloqueio criado.** Para localizar o bloqueio pelo motivo, vá 
 **Perguntas:** Como bloquear um horário na agenda? | Como bloquear a agenda de um profissional? | Como reservar um período indisponível em uma sala?
 
 **Fontes:**
-- [Criação do bloqueio e aviso](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaPage.tsx)
-- [Campos do bloqueio](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/ScheduleBlockModal.tsx)
+- [Criação do bloqueio e aviso](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaPage.tsx)
+- [Campos do bloqueio](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/ScheduleBlockModal.tsx)
 
 ## AG14 · Cancelar um bloqueio de horário
 
@@ -640,8 +640,8 @@ O bloqueio deixa de aparecer na agenda e o período volta a ficar disponível pa
 **Perguntas:** Como cancelar um bloqueio na agenda? | Como liberar um horário que bloqueei? | Onde desfaço um bloqueio de sala?
 
 **Fontes:**
-- [Ação no cartão do bloqueio](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/ScheduleBlockCard.tsx)
-- [Confirmação e efeito do cancelamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/CancelBlockModal.tsx)
+- [Ação no cartão do bloqueio](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/ScheduleBlockCard.tsx)
+- [Confirmação e efeito do cancelamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/CancelBlockModal.tsx)
 
 ## AG15 · Criar uma nota na Agenda
 
@@ -656,8 +656,8 @@ A nota aparece no dia e no horário escolhidos, com **Mostrar notas** ativo. Ela
 **Perguntas:** Como criar uma nota na agenda? | Como colocar uma anotação na agenda? | Como adicionar um lembrete simples na agenda?
 
 **Fontes:**
-- [Formulário de nota na Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaNoteModal.tsx)
-- [Teste de criação e exibição da nota](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/e2e/agenda-notes.spec.ts)
+- [Formulário de nota na Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaNoteModal.tsx)
+- [Teste de criação e exibição da nota](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/e2e/agenda-notes.spec.ts)
 
 ## AG16 · Criar uma nota recorrente na Agenda
 
@@ -673,7 +673,7 @@ Confira a nota no dia inicial e em outra data da série, com **Mostrar notas** a
 **Perguntas:** Como repetir uma nota na agenda? | Como criar uma nota recorrente? | Como colocar a mesma nota em várias semanas?
 
 **Fontes:**
-- [Campos da repetição e limite de ocorrências](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaNoteModal.tsx)
+- [Campos da repetição e limite de ocorrências](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaNoteModal.tsx)
 
 ## AG17 · Editar uma nota ou uma série de notas da Agenda
 
@@ -689,8 +689,8 @@ Confira a nota alterada na Agenda. Se aplicou às próximas ocorrências, confir
 **Perguntas:** Como editar uma nota da agenda? | Como alterar as próximas notas recorrentes? | Como editar só uma ocorrência de uma nota?
 
 **Fontes:**
-- [Ação Editar no detalhe da nota](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx)
-- [Edição e escolha das ocorrências](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaNoteModal.tsx)
+- [Ação Editar no detalhe da nota](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx)
+- [Edição e escolha das ocorrências](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaNoteModal.tsx)
 
 ## AG18 · Excluir uma nota ou suas repetições da Agenda
 
@@ -704,7 +704,7 @@ Confira se a nota saiu do dia. Se excluiu as próximas ocorrências, abra uma da
 **Perguntas:** Como excluir uma nota da agenda? | Como apagar as repetições de uma nota? | Como apagar só uma ocorrência da nota?
 
 **Fontes:**
-- [Exclusão e escolha das ocorrências](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx)
+- [Exclusão e escolha das ocorrências](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx)
 
 ## AG19 · Consultar o histórico de remarcações
 
@@ -718,8 +718,8 @@ O histórico permite identificar a mudança sem editar o atendimento.
 **Perguntas:** Onde vejo o histórico de remarcações? | Como descubro o horário antigo de um atendimento remarcado?
 
 **Fontes:**
-- [Ações do cartão na Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaCard.tsx)
-- [Janela de histórico](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentRescheduleHistoryModal.tsx)
+- [Ações do cartão na Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaCard.tsx)
+- [Janela de histórico](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentRescheduleHistoryModal.tsx)
 
 ## AG20 · Filtrar e finalizar atendimentos pendentes
 
@@ -734,8 +734,8 @@ O atendimento sai da lista de pendências. Você pode abrir **Ver concluídos** 
 **Perguntas:** Como finalizar os atendimentos pendentes? | Onde filtro a lista A finalizar?
 
 **Fontes:**
-- [Destino do aviso](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/app/notification-center.tsx)
-- [Filtros, seleção e finalização](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/PendingFinalizationPage.tsx)
+- [Destino do aviso](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/app/notification-center.tsx)
+- [Filtros, seleção e finalização](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/PendingFinalizationPage.tsx)
 
 ## AG21 · Consultar atendimentos concluídos na Agenda
 
@@ -750,8 +750,8 @@ Confira se o atendimento aparece em **Atendimentos concluídos** no período esc
 **Perguntas:** Onde vejo os atendimentos concluídos? | Como consultar atendimentos finalizados hoje? | Como filtrar a lista de atendimentos concluídos?
 
 **Fontes:**
-- [Atalho Concluídos na Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaPage.tsx)
-- [Seleção de período e filtros](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/CompletedAppointmentsPage.tsx)
+- [Atalho Concluídos na Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaPage.tsx)
+- [Seleção de período e filtros](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/CompletedAppointmentsPage.tsx)
 
 ## AG22 · Preparar o compartilhamento da Agenda pelo WhatsApp
 
@@ -767,7 +767,7 @@ A Agenda prepara uma mensagem com a programação do profissional no período es
 **Perguntas:** Como compartilhar a agenda? | Como mandar a agenda do profissional por WhatsApp? | Onde preparo uma mensagem com os horários da agenda?
 
 **Fontes:**
-- [Janela, prévia e link de WhatsApp](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/ShareAgendaModal.tsx)
+- [Janela, prévia e link de WhatsApp](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/ShareAgendaModal.tsx)
 
 ## AG23 · Abrir uma aula de turma pela Agenda
 
@@ -781,8 +781,8 @@ O CRM abre **Turmas** com o encontro selecionado. A ação depende de acesso ao 
 **Perguntas:** Como abrir uma aula pela agenda? | Onde fica Abrir encontro na agenda? | Como ir da Agenda para os detalhes da aula de turma?
 
 **Fontes:**
-- [Cartão de aula e atalho Abrir encontro](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/GroupSessionCard.tsx)
-- [Abertura do encontro indicado pela Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupsPage.tsx)
+- [Cartão de aula e atalho Abrir encontro](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/GroupSessionCard.tsx)
+- [Abertura do encontro indicado pela Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupsPage.tsx)
 
 ## AG24 · Registrar uma pesquisa de satisfação no atendimento
 
@@ -796,8 +796,8 @@ O CRM fecha a pesquisa depois de registrar a avaliação para aquele cliente e a
 **Perguntas:** Como registrar satisfação em um atendimento? | Onde lanço a nota de NPS da sessão?
 
 **Fontes:**
-- [Entrada nos detalhes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
-- [Nota, comentário e salvamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx)
+- [Entrada nos detalhes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Nota, comentário e salvamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx)
 
 ## AG25 · Conferir feriados e compromissos de um dia na Agenda
 
@@ -812,8 +812,8 @@ O nome do feriado aparece no calendário e no detalhe do dia. Se você tem acess
 **Perguntas:** Onde vejo se um dia é feriado na Agenda? | Como conferir os compromissos de um dia no mês? | Como abrir os eventos de um dia na Agenda?
 
 **Fontes:**
-- [Calendário mensal e abertura do dia](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaPage.tsx)
-- [Feriado e programação na janela do dia](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/DayEventsModal.tsx)
+- [Calendário mensal e abertura do dia](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaPage.tsx)
+- [Feriado e programação na janela do dia](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/DayEventsModal.tsx)
 
 ## CL03 · Consultar o cadastro de um cliente com acesso somente leitura
 
@@ -827,8 +827,8 @@ Os campos aparecem disponíveis para leitura. Feche a janela em **Fechar** quand
 **Perguntas:** Como consultar cliente sem editar? | Como abrir o cadastro com acesso somente leitura? | Por que aparece Ver no lugar de Editar cliente?
 
 **Fontes:**
-- [Ação de consulta na lista de clientes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientsPage.tsx)
-- [Modo Consultar cliente no formulário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientModal.tsx)
+- [Ação de consulta na lista de clientes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientsPage.tsx)
+- [Modo Consultar cliente no formulário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientModal.tsx)
 
 ## CL06 · Cadastrar um cliente e agendar aula experimental no mesmo fluxo
 
@@ -843,7 +843,7 @@ Abra a ficha do novo cliente e confira a aula nos próximos atendimentos da aba 
 **Perguntas:** Como cadastrar cliente e agendar uma experimental junto? | Onde marco a aula experimental no cadastro de cliente?
 
 **Fontes:**
-- [Cadastro e ações de agendamento guiado](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientModal.tsx)
+- [Cadastro e ações de agendamento guiado](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientModal.tsx)
 
 ## CL07 · Cadastrar um cliente e contratar um plano junto
 
@@ -858,8 +858,8 @@ Abra a ficha do novo cliente e confira a contratação em **Planos**. Se o fluxo
 **Perguntas:** Como cadastrar um cliente já com um plano? | Onde contrato plano junto com cadastro de cliente?
 
 **Fontes:**
-- [Contratação integrada ao cadastro de cliente](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientModal.tsx)
-- [Aba Planos na ficha do cliente](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientRecordTabs.tsx)
+- [Contratação integrada ao cadastro de cliente](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientModal.tsx)
+- [Aba Planos na ficha do cliente](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientRecordTabs.tsx)
 
 ## CL08 · Cadastrar um cliente e vender um serviço avulso junto
 
@@ -873,7 +873,7 @@ Confira a contratação na aba **Planos** da ficha do novo cliente.
 **Perguntas:** Como cadastrar um cliente já com serviço avulso? | Onde incluo a sessão avulsa no cadastro?
 
 **Fontes:**
-- [Fluxo de cadastro e serviço avulso](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientModal.tsx)
+- [Fluxo de cadastro e serviço avulso](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientModal.tsx)
 
 ## CL09 · Cadastrar um cliente e incluir uma venda de produto
 
@@ -887,7 +887,7 @@ Confira o cadastro em **Clientes** e a venda correspondente em **Vendas realizad
 **Perguntas:** Como cadastrar cliente e vender produto na mesma tela? | Onde adiciono um produto no cadastro de cliente?
 
 **Fontes:**
-- [Cadastro e ação de venda guiada](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientModal.tsx)
+- [Cadastro e ação de venda guiada](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientModal.tsx)
 
 ## CL10 · Importar clientes de uma planilha
 
@@ -902,8 +902,8 @@ Confira o resumo da importação e procure os novos cadastros em **Clientes**. U
 **Perguntas:** Como importar clientes? | Como enviar uma planilha de clientes? | Onde subo o CSV de clientes?
 
 **Fontes:**
-- [Atalho Mais e ação Importar](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientsPage.tsx)
-- [Formulário e prévia da planilha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientImportModal.tsx)
+- [Atalho Mais e ação Importar](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientsPage.tsx)
+- [Formulário e prévia da planilha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientImportModal.tsx)
 
 ## CL11 · Exportar a lista de clientes
 
@@ -917,8 +917,8 @@ Abra o arquivo CSV que o navegador baixou. Confira se foram incluídas as coluna
 **Perguntas:** Como exportar clientes? | Como baixar lista de clientes? | Onde baixo a planilha de clientes?
 
 **Fontes:**
-- [Atalho Mais e ação Exportar](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientsPage.tsx)
-- [Seleção dos campos e download](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientExportModal.tsx)
+- [Atalho Mais e ação Exportar](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientsPage.tsx)
+- [Seleção dos campos e download](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientExportModal.tsx)
 
 ## CL14 · Inativar clientes em lote
 
@@ -933,9 +933,9 @@ A prévia considera clientes ativos da rede com cadastros antigos o suficiente p
 **Perguntas:** Como inativar clientes em lote? | Onde desativo vários clientes sem atividade? | Por que um cliente foi ignorado na inativação em lote?
 
 **Fontes:**
-- [Ação, resultado e filtro em Clientes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientsPage.tsx)
-- [Período, prévia e seleção](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientInactivationModal.tsx)
-- [Critérios de elegibilidade e revalidação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/api/src/storage/mysql/patient-management.ts)
+- [Ação, resultado e filtro em Clientes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientsPage.tsx)
+- [Período, prévia e seleção](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientInactivationModal.tsx)
+- [Critérios de elegibilidade e revalidação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/api/src/storage/mysql/patient-management.ts)
 
 ## CL15 · Consultar o contato de emergência de um cliente
 
@@ -949,7 +949,7 @@ Se aparecer um telefone ou WhatsApp, use o canal conforme a necessidade. Se o co
 **Perguntas:** Onde encontro o contato de emergência de um cliente? | Como ver o telefone de emergência do cliente? | Como consultar o responsável de emergência pelo SOS?
 
 **Fontes:**
-- [Consulta, dados e ações do SOS](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/shared/components/EmergencyButton.tsx)
+- [Consulta, dados e ações do SOS](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/shared/components/EmergencyButton.tsx)
 
 ## CL16 · Aplicar desconto em uma compra durante o cadastro
 
@@ -963,7 +963,7 @@ Depois de salvar, abra a venda para conferir o valor final e o desconto registra
 **Perguntas:** Como dar desconto no cadastro com compra? | Onde aplico desconto a um produto durante o cadastro?
 
 **Fontes:**
-- [Fluxo de venda e configuração do desconto](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientModal.tsx)
+- [Fluxo de venda e configuração do desconto](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientModal.tsx)
 
 ## CL17 · Consultar o histórico de um cliente
 
@@ -977,8 +977,8 @@ A aba reúne o histórico daquele cadastro. Sua exibição depende da permissão
 **Perguntas:** Como consultar o histórico de um cliente? | Onde vejo as alterações na ficha do cliente? | Por que a aba Histórico não aparece na ficha?
 
 **Fontes:**
-- [Entrada da ficha na lista](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientsPage.tsx)
-- [Aba Histórico e permissão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientRecordTabs.tsx)
+- [Entrada da ficha na lista](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientsPage.tsx)
+- [Aba Histórico e permissão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientRecordTabs.tsx)
 
 ## CL18 · Concluir os passos após uma contratação guiada
 
@@ -993,8 +993,8 @@ Confira o plano e a situação do recebimento. Cada etapa depende dos dados pree
 **Perguntas:** Como concluir a venda guiada após contratar um plano? | Onde registro pagamento ou preparo o recibo depois da contratação?
 
 **Fontes:**
-- [Etapas posteriores à contratação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlansPage.tsx)
-- [Baixa da parcela](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/SettleModal.tsx)
+- [Etapas posteriores à contratação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlansPage.tsx)
+- [Baixa da parcela](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/SettleModal.tsx)
 
 ## CM01 · Encontrar uma pessoa interessada no funil
 
@@ -1009,8 +1009,8 @@ Se estiver procurando uma oportunidade perdida, confira **Ocultar perdidos** e o
 **Perguntas:** Como localizar um lead no funil? | Onde encontro uma pessoa interessada? | Como filtrar os leads por etapa ou responsável?
 
 **Fontes:**
-- [Funil, atalhos e abertura dos filtros](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/CommercialPage.tsx)
-- [Campos e aplicação dos filtros](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadFiltersModal.tsx)
+- [Funil, atalhos e abertura dos filtros](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Campos e aplicação dos filtros](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadFiltersModal.tsx)
 
 ## CM03 · Consultar os detalhes, atividades e análise do funil
 
@@ -1025,9 +1025,9 @@ Em **Análise do funil**, consulte quadros como **Conversão por origem**, **Con
 **Perguntas:** Como consultar os detalhes de um lead? | Onde vejo as movimentações de um lead? | Como abrir a análise do funil comercial?
 
 **Fontes:**
-- [Entrada de análise e ações dos cartões](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/CommercialPage.tsx)
-- [Abas do detalhe](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadDetailsModal.tsx)
-- [Quadros de análise](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadAnalysisModal.tsx)
+- [Entrada de análise e ações dos cartões](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Abas do detalhe](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadDetailsModal.tsx)
+- [Quadros de análise](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadAnalysisModal.tsx)
 
 ## CM04 · Editar o cadastro de um lead
 
@@ -1042,8 +1042,8 @@ Confira as informações atualizadas no cartão ou abra os detalhes para revisar
 **Perguntas:** Como editar um lead? | Como alterar o nome de um lead no funil? | Onde atualizo o cadastro de um interessado?
 
 **Fontes:**
-- [Ação de edição no funil](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/CommercialPage.tsx)
-- [Campos e salvamento do lead](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadModal.tsx)
+- [Ação de edição no funil](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Campos e salvamento do lead](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadModal.tsx)
 
 ## CM05 · Mover um lead para outra etapa do funil
 
@@ -1057,7 +1057,7 @@ O cartão passa para a coluna da etapa escolhida. Abra os detalhes para conferir
 **Perguntas:** Como mover um lead de etapa? | Como trocar a coluna de um lead no funil? | Como passar um lead para Em contato?
 
 **Fontes:**
-- [Seletor de etapa no funil](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Seletor de etapa no funil](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/CommercialPage.tsx)
 
 ## CM06 · Marcar um lead como perdido
 
@@ -1072,8 +1072,8 @@ O lead sai das oportunidades abertas. Para encontrá-lo, confira se **Ocultar pe
 **Perguntas:** Como marcar um lead como perdido? | Onde registro o motivo de perda de um interessado? | Como mover um lead para Perdidos?
 
 **Fontes:**
-- [Seleção da etapa e exibição de perdidos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/CommercialPage.tsx)
-- [Motivo obrigatório e confirmação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadLostModal.tsx)
+- [Seleção da etapa e exibição de perdidos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Motivo obrigatório e confirmação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadLostModal.tsx)
 
 ## CM07 · Criar, editar ou reordenar uma etapa do funil
 
@@ -1087,8 +1087,8 @@ Confira a nova posição no funil. No computador, a interface também oferece o 
 **Perguntas:** Como criar uma etapa no funil? | Como mudar a ordem das etapas do CRM comercial? | Onde renomeio uma coluna do funil?
 
 **Fontes:**
-- [Funil e ações do cabeçalho](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/CommercialPage.tsx)
-- [Campos da etapa e posição](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadStageModal.tsx)
+- [Funil e ações do cabeçalho](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Campos da etapa e posição](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadStageModal.tsx)
 
 ## CM08 · Criar uma tarefa de acompanhamento para um lead
 
@@ -1104,8 +1104,8 @@ A nova tarefa aparece na lista do lead com o vencimento escolhido.
 **Perguntas:** Como criar uma tarefa para um lead? | Como agendar um retorno no funil? | Onde cadastro uma tarefa comercial de acompanhamento?
 
 **Fontes:**
-- [Entrada de Atividades no funil](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/CommercialPage.tsx)
-- [Formulário e lista de tarefas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadActivityModal.tsx)
+- [Entrada de Atividades no funil](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Formulário e lista de tarefas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadActivityModal.tsx)
 
 ## CM09 · Concluir ou cancelar uma tarefa de um lead
 
@@ -1120,7 +1120,7 @@ Confira a nova situação na mesma lista.
 **Perguntas:** Como concluir uma tarefa do lead? | Como marcar uma tarefa comercial como concluída? | Como cancelar uma tarefa de acompanhamento?
 
 **Fontes:**
-- [Ações e estados de tarefas comerciais](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadActivityModal.tsx)
+- [Ações e estados de tarefas comerciais](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadActivityModal.tsx)
 
 ## CM10 · Registrar um contato com um lead
 
@@ -1136,7 +1136,7 @@ O registro aparece no histórico do lead, inclusive quando você informa que a t
 **Perguntas:** Como registrar contato com um lead? | Como anotar uma ligação para um lead? | Onde registro uma tentativa de contato comercial?
 
 **Fontes:**
-- [Campos e histórico de contato](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadActivityModal.tsx)
+- [Campos e histórico de contato](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadActivityModal.tsx)
 
 ## CM11 · Agendar aula experimental para um lead
 
@@ -1151,8 +1151,8 @@ A aula aparece na Agenda vinculada ao lead. O cadastro de cliente pode ser feito
 **Perguntas:** Como marcar uma aula experimental para um lead? | Onde agendo atendimento para um interessado do funil?
 
 **Fontes:**
-- [Ação no funil](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/CommercialPage.tsx)
-- [Formulário do agendamento de lead](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadAppointmentModal.tsx)
+- [Ação no funil](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Formulário do agendamento de lead](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadAppointmentModal.tsx)
 
 ## CM13 · Importar leads de uma planilha
 
@@ -1167,8 +1167,8 @@ Leia o resultado da importação e procure as pessoas na etapa selecionada. Se n
 **Perguntas:** Como importar leads? | Como colocar uma planilha de interessados no funil? | Onde baixo o modelo CSV para importar leads?
 
 **Fontes:**
-- [Abertura da importação no funil](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/CommercialPage.tsx)
-- [Escolha do arquivo e destino no funil](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/commercial/LeadImportModal.tsx)
+- [Abertura da importação no funil](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Escolha do arquivo e destino no funil](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/commercial/LeadImportModal.tsx)
 
 ## GR01 · Localizar turmas e consultar aulas e indicadores
 
@@ -1183,8 +1183,8 @@ Confira o nome da turma e o horário do encontro selecionado. A aba **Visão ger
 **Perguntas:** Onde vejo as aulas de uma turma? | Como localizar uma turma e sua aula no calendário? | Onde vejo o resumo das turmas?
 
 **Fontes:**
-- [Lista de turmas e aba de indicadores](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupsPage.tsx)
-- [Abas e calendário da turma](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Lista de turmas e aba de indicadores](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupsPage.tsx)
+- [Abas e calendário da turma](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupDetailsModal.tsx)
 
 ## GR03 · Editar dados ou renomear uma turma
 
@@ -1198,8 +1198,8 @@ Confira o nome na lista e os horários ou vagas nos detalhes da turma.
 **Perguntas:** Como renomear uma turma? | Como editar os dados de uma turma? | Onde mudo o nome da turma no CRM?
 
 **Fontes:**
-- [Abertura da turma](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupsPage.tsx)
-- [Edição de nome, capacidade e horários](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Abertura da turma](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupsPage.tsx)
+- [Edição de nome, capacidade e horários](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupDetailsModal.tsx)
 
 ## GR07 · Registrar a frequência de uma aula de turma
 
@@ -1212,8 +1212,8 @@ Confira a situação ao lado do nome. A opção **Marcar todos presentes** fica 
 **Perguntas:** Como marcar frequência em uma aula de turma? | Onde registro falta ou presença de um aluno da turma?
 
 **Fontes:**
-- [Calendário de frequência](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupDetailsModal.tsx)
-- [Ações individuais e presença coletiva](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupSessionModal.tsx)
+- [Calendário de frequência](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Ações individuais e presença coletiva](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupSessionModal.tsx)
 
 ## GR08 · Concluir um encontro de turma
 
@@ -1226,8 +1226,8 @@ O botão de concluir deixa de aparecer naquele encontro. Consulte a situação d
 **Perguntas:** Como concluir uma aula de turma? | Onde finalizo o encontro após a chamada?
 
 **Fontes:**
-- [Abertura de encontros](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupDetailsModal.tsx)
-- [Ação Concluir encontro](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupSessionModal.tsx)
+- [Abertura de encontros](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Ação Concluir encontro](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupSessionModal.tsx)
 
 ## GR09 · Reservar uma aula de reposição para um aluno
 
@@ -1241,7 +1241,7 @@ Abra o encontro de destino e confira o aluno na lista de reposições. A tela in
 **Perguntas:** Como reservar reposição de aula de turma? | Onde escolho o encontro para usar um crédito de reposição?
 
 **Fontes:**
-- [Crédito, elegibilidade e gravação da reserva](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupOperationsPanel.tsx)
+- [Crédito, elegibilidade e gravação da reserva](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupOperationsPanel.tsx)
 
 ## GR10 · Registrar presença de um aluno na reposição
 
@@ -1255,7 +1255,7 @@ Confira a situação **Presente** na linha de reposição. Registre a situação
 **Perguntas:** Como registrar presença na reposição da turma? | Onde marco que o aluno compareceu à aula de reposição?
 
 **Fontes:**
-- [Linha de reposição e estados de presença](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupSessionModal.tsx)
+- [Linha de reposição e estados de presença](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupSessionModal.tsx)
 
 ## GR11 · Cancelar a matrícula de um aluno na turma
 
@@ -1269,8 +1269,8 @@ Confira a lista de participantes depois de salvar. A vaga passa a poder ser ofer
 **Perguntas:** Como cancelar a matrícula de um aluno? | Como tirar um cliente de uma turma?
 
 **Fontes:**
-- [Participantes e ação de cancelar matrícula](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupDetailsModal.tsx)
-- [Confirmação da matrícula](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupsPage.tsx)
+- [Participantes e ação de cancelar matrícula](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Confirmação da matrícula](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupsPage.tsx)
 
 ## GR12 · Alterar o profissional de um encontro da turma
 
@@ -1284,7 +1284,7 @@ A mudança pode ser conferida ao reabrir aquele encontro. O seletor mostra os pr
 **Perguntas:** Como trocar o profissional de uma aula específica? | Onde altero o responsável só pelo encontro da turma?
 
 **Fontes:**
-- [Edição do profissional do encontro](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/groups/GroupSessionModal.tsx)
+- [Edição do profissional do encontro](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/groups/GroupSessionModal.tsx)
 
 ## LE01 · Consultar a procura e filtrar a lista de espera
 
@@ -1299,7 +1299,7 @@ A lista mostra as entradas compatíveis com o item e a situação escolhidos.
 **Perguntas:** Como filtrar a lista de espera? | Onde vejo os produtos com maior procura? | Como ver a fila de um serviço específico?
 
 **Fontes:**
-- [Indicadores, atalhos e filtros da fila](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/waitlist/WaitlistPage.tsx)
+- [Indicadores, atalhos e filtros da fila](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/waitlist/WaitlistPage.tsx)
 
 ## LE03 · Colocar um cliente na espera por um produto
 
@@ -1314,8 +1314,8 @@ Procure o cliente em **Clientes na lista**. Use **Item** para filtrar pelo produ
 **Perguntas:** Como colocar um cliente na fila de um produto? | Como adicionar alguém na espera por reposição de estoque? | Onde cadastro uma espera por produto?
 
 **Fontes:**
-- [Formulário da fila por produto](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/waitlist/WaitlistEntryModal.tsx)
-- [Lista e filtros de espera](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/waitlist/WaitlistPage.tsx)
+- [Formulário da fila por produto](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/waitlist/WaitlistEntryModal.tsx)
+- [Lista e filtros de espera](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/waitlist/WaitlistPage.tsx)
 
 ## LE04 · Preparar um aviso de vaga ou reposição pela lista de espera
 
@@ -1330,7 +1330,7 @@ A fila mostra a situação **Avisado** depois que você salva a mudança. O text
 **Perguntas:** Como avisar alguém da lista de espera? | Como avisar que chegou o produto? | Onde preparo o WhatsApp para oferecer uma vaga?
 
 **Fontes:**
-- [Aviso, canal e atualização de situação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/waitlist/WaitlistManageModal.tsx)
+- [Aviso, canal e atualização de situação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/waitlist/WaitlistManageModal.tsx)
 
 ## LE05 · Matricular um cliente pela lista de espera
 
@@ -1344,8 +1344,8 @@ O CRM oferece turmas ativas do serviço escolhido com vagas disponíveis.
 **Perguntas:** Como confirmar matrícula pela lista de espera? | Como matricular na turma um cliente que está na fila?
 
 **Fontes:**
-- [Entrada da fila](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/waitlist/WaitlistPage.tsx)
-- [Seleção de turma e contratação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/waitlist/WaitlistEnrollSection.tsx)
+- [Entrada da fila](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/waitlist/WaitlistPage.tsx)
+- [Seleção de turma e contratação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/waitlist/WaitlistEnrollSection.tsx)
 
 ## LE06 · Atualizar a situação de um cliente na lista de espera
 
@@ -1360,8 +1360,8 @@ Confira a situação na lista. Se a entrada sumir, revise o filtro **Situação*
 **Perguntas:** Como mudar a situação na lista de espera? | Como marcar um cliente como avisado na fila? | Onde marco uma espera como atendida?
 
 **Fontes:**
-- [Abertura da entrada na fila](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/waitlist/WaitlistPage.tsx)
-- [Situações e salvamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/waitlist/WaitlistManageModal.tsx)
+- [Abertura da entrada na fila](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/waitlist/WaitlistPage.tsx)
+- [Situações e salvamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/waitlist/WaitlistManageModal.tsx)
 
 ## LE07 · Remover um cliente da lista de espera
 
@@ -1376,7 +1376,7 @@ A entrada desaparece da fila. Para guardar o histórico de alguém que já saiu 
 **Perguntas:** Como remover um cliente da lista de espera? | Como excluir uma entrada da fila? | Onde apago uma espera por produto?
 
 **Fontes:**
-- [Ação de remoção e confirmação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/waitlist/WaitlistManageModal.tsx)
+- [Ação de remoção e confirmação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/waitlist/WaitlistManageModal.tsx)
 
 ## PL01 · Localizar um plano por cliente e situação
 
@@ -1390,7 +1390,7 @@ A lista mostra os planos da situação selecionada. Se houver mais de um cartão
 **Perguntas:** Como localizar um plano de um cliente? | Como ver somente os planos ativos? | Onde filtro os planos que estão vencendo?
 
 **Fontes:**
-- [Cartões e filtros por situação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlansPage.tsx)
+- [Cartões e filtros por situação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlansPage.tsx)
 
 ## PL02 · Consultar saldo, validade e extrato de sessões
 
@@ -1405,7 +1405,7 @@ O extrato indica a quantidade disponível no momento e detalha o saldo por servi
 **Perguntas:** Como ver o saldo de sessões de um cliente? | Onde consulto o extrato de sessões? | Como conferir se um plano ainda tem validade e sessões?
 
 **Fontes:**
-- [Cartões e abertura do extrato](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlansPage.tsx)
+- [Cartões e abertura do extrato](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlansPage.tsx)
 
 ## PL05 · Contratar um plano com matrícula e documento
 
@@ -1421,8 +1421,8 @@ Confira o cartão do plano. A turma mostra o participante e o documento emitido 
 **Perguntas:** Como contratar um plano com matrícula e documento para assinatura? | Onde escolho a turma e o documento durante a contratação?
 
 **Fontes:**
-- [Turma e seleção do documento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlanModal.tsx)
-- [Confirmações após criar o plano](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlansPage.tsx)
+- [Turma e seleção do documento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlanModal.tsx)
+- [Confirmações após criar o plano](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlansPage.tsx)
 
 ## PL06 · Dividir a compra de um plano entre formas de pagamento
 
@@ -1439,8 +1439,8 @@ O plano aparece em **Planos dos clientes**. As formas marcadas como recorrentes 
 **Perguntas:** Como dividir a compra de um plano? | Como contratar um plano com duas formas de pagamento? | Como separar um valor recorrente e outro só na primeira cobrança?
 
 **Fontes:**
-- [Formulário de contratação e criação de parcelas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlanModal.tsx)
-- [Teste da contratação e baixa financeira](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/e2e/plans-finance.spec.ts)
+- [Formulário de contratação e criação de parcelas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlanModal.tsx)
+- [Teste da contratação e baixa financeira](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/e2e/plans-finance.spec.ts)
 
 ## PL07 · Renovar manualmente um plano
 
@@ -1455,8 +1455,8 @@ Um novo cartão de plano aparece para o cliente. Confira nele a validade da reno
 **Perguntas:** Como renovar um plano manualmente? | Onde renovo o plano de um cliente? | Como gerar as parcelas da renovação de um plano?
 
 **Fontes:**
-- [Ação Renovar no plano do cliente](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlansPage.tsx)
-- [Campos e confirmação da renovação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlanModal.tsx)
+- [Ação Renovar no plano do cliente](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlansPage.tsx)
+- [Campos e confirmação da renovação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlanModal.tsx)
 
 ## PL08 · Pausar e reativar um plano
 
@@ -1471,8 +1471,8 @@ O plano passa a aparecer em **Pausado** depois da pausa. Após ativá-lo, confir
 **Perguntas:** Como pausar um plano? | Como reativar um plano pausado? | Onde registro a previsão de retorno de um plano?
 
 **Fontes:**
-- [Situações e ações Pausar e Ativar](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlansPage.tsx)
-- [Campos opcionais e confirmação da pausa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlanPauseModal.tsx)
+- [Situações e ações Pausar e Ativar](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlansPage.tsx)
+- [Campos opcionais e confirmação da pausa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlanPauseModal.tsx)
 
 ## PL09 · Cancelar um plano com ou sem estorno ao cliente
 
@@ -1486,8 +1486,8 @@ As parcelas em aberto são canceladas e as sessões que restavam ficam indispon�
 **Perguntas:** Como cancelar um plano e devolver o valor ao cliente? | Como cancelar um plano sem estorno?
 
 **Fontes:**
-- [Lista e ações dos planos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlansPage.tsx)
-- [Cancelamento e registro de estorno](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlanCancelModal.tsx)
+- [Lista e ações dos planos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlansPage.tsx)
+- [Cancelamento e registro de estorno](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlanCancelModal.tsx)
 
 ## PL10 · Configurar a renovação automática de um plano
 
@@ -1501,8 +1501,8 @@ O controle aparece nos planos que admitem renovação automática. Na contrataç
 **Perguntas:** Como ligar a renovação automática de um plano? | Como desligar a renovação automática? | Onde vejo se o plano está com renovação automática?
 
 **Fontes:**
-- [Opção de renovação no cartão e atualização](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlansPage.tsx)
-- [Opção durante a contratação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/plans/PlanModal.tsx)
+- [Opção de renovação no cartão e atualização](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlansPage.tsx)
+- [Opção durante a contratação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/plans/PlanModal.tsx)
 
 ## PR01 · Localizar um cliente e abrir seu prontuário
 
@@ -1516,8 +1516,8 @@ O prontuário abre com as áreas clínicas disponíveis para a sua conta, como *
 **Perguntas:** Como abrir um prontuário? | Como localizar um paciente em Prontuários? | Onde abro a ficha clínica de um cliente?
 
 **Fontes:**
-- [Lista e seleção de clientes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalRecordsPage.tsx)
-- [Cabeçalho e abas do prontuário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
+- [Lista e seleção de clientes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalRecordsPage.tsx)
+- [Cabeçalho e abas do prontuário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
 
 ## PR02 · Consultar a linha do tempo do prontuário
 
@@ -1531,7 +1531,7 @@ Os filtros mudam os itens mostrados. Quando houver uma medição, a linha aprese
 **Perguntas:** Como ver o histórico clínico? | Onde vejo a linha do tempo do prontuário? | Como filtrar medições e anexos no histórico clínico?
 
 **Fontes:**
-- [Linha do tempo e filtros no prontuário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalChart.tsx)
+- [Linha do tempo e filtros no prontuário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalChart.tsx)
 
 ## PR06 · Anexar um arquivo ao prontuário
 
@@ -1547,8 +1547,8 @@ O arquivo aparece na aba **Arquivos**. O formulário indica os formatos aceitos 
 **Perguntas:** Como anexar um arquivo ao prontuário? | Onde adiciono uma foto ao prontuário? | Como colocar um PDF na ficha clínica?
 
 **Fontes:**
-- [Aba de arquivos e abertura da janela](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ChartFilesTab.tsx)
-- [Envio e limites de anexos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx)
+- [Aba de arquivos e abertura da janela](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ChartFilesTab.tsx)
+- [Envio e limites de anexos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx)
 
 ## PR07 · Consultar ou baixar um anexo do prontuário
 
@@ -1562,7 +1562,7 @@ Confira o nome do arquivo na janela antes de baixar. Se houver outros anexos na 
 **Perguntas:** Como abrir um anexo do prontuário? | Onde baixo um arquivo da ficha clínica? | Como ver os documentos anexados ao prontuário?
 
 **Fontes:**
-- [Lista, visualização e download dos anexos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ChartFilesTab.tsx)
+- [Lista, visualização e download dos anexos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ChartFilesTab.tsx)
 
 ## PR08 · Criar ou remover um alerta clínico
 
@@ -1577,8 +1577,8 @@ O alerta ativo aparece no topo do prontuário. Ao remover, ele sai do topo e o h
 **Perguntas:** Como criar um alerta clínico? | Como fixar um aviso no prontuário? | Como retirar um alerta do prontuário?
 
 **Fontes:**
-- [Ações de alerta no prontuário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
-- [Campos e gravação do alerta](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalAlertModal.tsx)
+- [Ações de alerta no prontuário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
+- [Campos e gravação do alerta](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalAlertModal.tsx)
 
 ## PR09 · Montar e publicar um modelo de avaliação
 
@@ -1594,8 +1594,8 @@ O modelo aparece em **Modelos de avaliação**. Os modelos publicados ficam disp
 **Perguntas:** Como criar um formulário de avaliação? | Como publicar um modelo de prontuário? | Onde vejo a prévia do modelo de avaliação?
 
 **Fontes:**
-- [Abas e publicação de modelos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx)
-- [Campos, prévia e botões](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/AssessmentTemplateFields.tsx)
+- [Abas e publicação de modelos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx)
+- [Campos, prévia e botões](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/AssessmentTemplateFields.tsx)
 
 ## PR10 · Editar um modelo de avaliação publicado
 
@@ -1610,8 +1610,8 @@ Confira o modelo na lista. Para alterar a disponibilidade de um modelo, use a a�
 **Perguntas:** Como editar um modelo de avaliação? | Como alterar um formulário de avaliação publicado? | Onde arquivo um modelo de prontuário?
 
 **Fontes:**
-- [Lista e ações dos modelos de avaliação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx)
-- [Formulário de edição e publicação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/AssessmentTemplateModal.tsx)
+- [Lista e ações dos modelos de avaliação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx)
+- [Formulário de edição e publicação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/AssessmentTemplateModal.tsx)
 
 ## PR11 · Registrar uma avaliação usando um formulário
 
@@ -1627,8 +1627,8 @@ Encontre o registro na aba **Avaliações** do prontuário do cliente.
 **Perguntas:** Como preencher um formulário de avaliação? | Como registrar uma avaliação usando modelo? | Onde registro a avaliação de um paciente?
 
 **Fontes:**
-- [Abertura da avaliação no prontuário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
-- [Seleção de formulário, respostas e registro](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalAssessmentModal.tsx)
+- [Abertura da avaliação no prontuário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
+- [Seleção de formulário, respostas e registro](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalAssessmentModal.tsx)
 
 ## PR12 · Criar e acompanhar um objetivo terapêutico
 
@@ -1644,8 +1644,8 @@ O objetivo aparece na ficha. Depois da mudança, ele fica identificado como **Al
 **Perguntas:** Como criar um objetivo terapêutico? | Onde acompanho as metas do paciente? | Como marcar um objetivo como alcançado?
 
 **Fontes:**
-- [Campos e salvamento do objetivo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/TherapeuticGoalModal.tsx)
-- [Exibição do plano e ações de objetivos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ChartTabs.tsx)
+- [Campos e salvamento do objetivo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/TherapeuticGoalModal.tsx)
+- [Exibição do plano e ações de objetivos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ChartTabs.tsx)
 
 ## PR13 · Registrar e comparar medições no prontuário
 
@@ -1661,8 +1661,8 @@ Consulte **Evolução das medições** para comparar as medições registradas a
 **Perguntas:** Como registrar uma medição no prontuário? | Onde comparo as medições clínicas de um cliente? | Como acompanhar a evolução de uma medida?
 
 **Fontes:**
-- [Campos da medição clínica](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalMeasurementModal.tsx)
-- [Evolução dos valores](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/MeasurementChart.tsx)
+- [Campos da medição clínica](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalMeasurementModal.tsx)
+- [Evolução dos valores](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/MeasurementChart.tsx)
 
 ## PR14 · Registrar alta ou encerramento do tratamento
 
@@ -1677,8 +1677,8 @@ Confira a situação e a data na ficha. O registro também aparece na história 
 **Perguntas:** Como registrar alta no prontuário? | Onde registro o encerramento de tratamento de um paciente?
 
 **Fontes:**
-- [Ação e situação no prontuário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalChart.tsx)
-- [Campos do encerramento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/TreatmentClosureModal.tsx)
+- [Ação e situação no prontuário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalChart.tsx)
+- [Campos do encerramento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/TreatmentClosureModal.tsx)
 
 ## PR15 · Consultar quem acessou um prontuário
 
@@ -1692,8 +1692,8 @@ O histórico é referente ao prontuário aberto. Se a ação estiver indisponív
 **Perguntas:** Como ver quem acessou um prontuário? | Onde fica o histórico de acessos do prontuário? | Como vejo o registro de acesso à ficha clínica?
 
 **Fontes:**
-- [Ação no cabeçalho da ficha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
-- [Janela de histórico de acessos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalAccessHistoryModal.tsx)
+- [Ação no cabeçalho da ficha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
+- [Janela de histórico de acessos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalAccessHistoryModal.tsx)
 
 ## PR16 · Exportar ou imprimir um prontuário
 
@@ -1707,7 +1707,7 @@ A exportação gera um arquivo JSON com os dados do prontuário. Para guardar um
 **Perguntas:** Como exportar um prontuário? | Como imprimir a ficha clínica? | Onde baixo os dados do prontuário do cliente?
 
 **Fontes:**
-- [Ações de exportação e impressão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
+- [Ações de exportação e impressão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
 
 ## PR17 · Criar um treino no prontuário do cliente
 
@@ -1723,8 +1723,8 @@ Confira o treino pelo nome na lista. Para incluir um exercício que ainda não e
 **Perguntas:** Como montar um treino no prontuário? | Onde cadastro um exercício para usar no treino do cliente?
 
 **Fontes:**
-- [Seções e lista de registros clínicos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx)
-- [Campos de exercícios e treinos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalResourceEditor.tsx)
+- [Seções e lista de registros clínicos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx)
+- [Campos de exercícios e treinos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalResourceEditor.tsx)
 
 ## PR18 · Copiar, editar, finalizar ou imprimir registros clínicos
 
@@ -1739,8 +1739,8 @@ Confira o nome da cópia ou a situação **Finalizado**, conforme a ação. As o
 **Perguntas:** Como copiar treino ou finalizar relatório clínico? | Onde imprimo treinos e documentos de um período?
 
 **Fontes:**
-- [Ações e impressão no prontuário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx)
-- [Edição e cópia de registros](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalResourceEditor.tsx)
+- [Ações e impressão no prontuário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx)
+- [Edição e cópia de registros](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalResourceEditor.tsx)
 
 ## PR19 · Gravar e ouvir um áudio no prontuário
 
@@ -1755,8 +1755,8 @@ O áudio fica na lista de anexos. A janela informa os limites de 15 minutos e 16
 **Perguntas:** Como gravar áudio no prontuário? | Onde consigo ouvir um áudio salvo na ficha clínica?
 
 **Fontes:**
-- [Gravação no formulário do anexo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx)
-- [Carregamento e reprodução](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalAudioPlayer.tsx)
+- [Gravação no formulário do anexo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx)
+- [Carregamento e reprodução](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalAudioPlayer.tsx)
 
 ## PR20 · Registrar a execução de um treino
 
@@ -1772,8 +1772,8 @@ Confira o novo registro na lista de treinos executados e clique em **Visualizar*
 **Perguntas:** Como registrar que o cliente executou um treino? | Onde lanço uma execução de treino no prontuário?
 
 **Fontes:**
-- [Entrada da seção de treinos executados](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx)
-- [Campos da execução](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/clinical/ClinicalResourceEditor.tsx)
+- [Entrada da seção de treinos executados](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx)
+- [Campos da execução](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/clinical/ClinicalResourceEditor.tsx)
 
 ## EV04 · Excluir um evento
 
@@ -1788,7 +1788,7 @@ O evento desaparece da lista. Os participantes que já estavam no funil comercia
 **Perguntas:** Como excluir um evento? | Como apagar um evento cadastrado? | O que acontece com os participantes quando excluo um evento?
 
 **Fontes:**
-- [Ação e efeitos da exclusão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventsPage.tsx)
+- [Ação e efeitos da exclusão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventsPage.tsx)
 
 ## EV07 · Importar participantes de um evento
 
@@ -1804,8 +1804,8 @@ A janela informa quantas pessoas entraram e quantas linhas foram ignoradas. Use 
 **Perguntas:** Como importar participantes de um evento? | Como trago os inscritos de uma planilha? | Onde subo o CSV de participantes do evento?
 
 **Fontes:**
-- [Ação de importação no evento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventDetailPage.tsx)
-- [Planilha, prévia e resumo da importação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventImportModal.tsx)
+- [Ação de importação no evento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventDetailPage.tsx)
+- [Planilha, prévia e resumo da importação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventImportModal.tsx)
 
 ## EV08 · Exportar a lista de participantes de um evento
 
@@ -1819,7 +1819,7 @@ A planilha XLSX traz o nome do evento no nome do arquivo.
 **Perguntas:** Como exportar participantes de um evento? | Como baixar a lista de inscritos do evento? | Onde baixo a planilha de participantes?
 
 **Fontes:**
-- [Botão e geração da planilha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventDetailPage.tsx)
+- [Botão e geração da planilha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventDetailPage.tsx)
 
 ## EV09 · Converter um participante do evento em cliente
 
@@ -1833,8 +1833,8 @@ O participante aparece com o estado **Cliente** na lista do evento.
 **Perguntas:** Como transformar um participante do evento em cliente? | Onde completo o cadastro de cliente de um inscrito?
 
 **Fontes:**
-- [Ação na lista de participantes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventDetailPage.tsx)
-- [Solicitação de dados e conversão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventConvertModal.tsx)
+- [Ação na lista de participantes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventDetailPage.tsx)
+- [Solicitação de dados e conversão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventConvertModal.tsx)
 
 ## EV10 · Registrar contato com um participante de evento
 
@@ -1850,8 +1850,8 @@ O registro é salvo para o participante. Volte à lista do evento para conferir 
 **Perguntas:** Como registrar contato com um participante? | Como anotar um telefonema para um inscrito do evento? | Onde registro uma tentativa de falar com um participante?
 
 **Fontes:**
-- [Ação na lista do evento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventDetailPage.tsx)
-- [Campos e salvamento do contato](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventContactModal.tsx)
+- [Ação na lista do evento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventDetailPage.tsx)
+- [Campos e salvamento do contato](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventContactModal.tsx)
 
 ## EV11 · Remover um participante de um evento
 
@@ -1866,7 +1866,7 @@ O participante sai da lista desse evento. Se estiver no funil comercial como lea
 **Perguntas:** Como remover um participante de um evento? | Como tirar alguém da lista de participantes? | O que acontece com o lead se removo o participante?
 
 **Fontes:**
-- [Ação e confirmação de remoção](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/events/EventDetailPage.tsx)
+- [Ação e confirmação de remoção](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/events/EventDetailPage.tsx)
 
 ## RE01 · Consultar sugestões de contato e seus motivos
 
@@ -1880,8 +1880,8 @@ A janela mostra o motivo que trouxe aquele cliente à lista e os detalhes dispon
 **Perguntas:** Por que um cliente aparece em Contatos sugeridos? | Como ver os motivos de contato sugerido? | Onde filtro os contatos sugeridos por atraso?
 
 **Fontes:**
-- [Filtros e cartões de contatos sugeridos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/relationship/RelationshipPage.tsx)
-- [Motivos e situações no cartão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/relationship/ClientPendingModal.tsx)
+- [Filtros e cartões de contatos sugeridos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/relationship/RelationshipPage.tsx)
+- [Motivos e situações no cartão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/relationship/ClientPendingModal.tsx)
 
 ## RE02 · Abrir as pendências de um cliente sugerido
 
@@ -1895,8 +1895,8 @@ Confira o nome do cliente na janela antes de seguir para outra tela.
 **Perguntas:** Como abrir as pendências de um contato sugerido? | Onde vejo o que está pendente para um cliente sugerido? | Como abrir a ficha a partir de Contatos sugeridos?
 
 **Fontes:**
-- [Abertura das pendências pelo cartão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/relationship/RelationshipPage.tsx)
-- [Seções e atalhos da janela de pendências](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/relationship/ClientPendingModal.tsx)
+- [Abertura das pendências pelo cartão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/relationship/RelationshipPage.tsx)
+- [Seções e atalhos da janela de pendências](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/relationship/ClientPendingModal.tsx)
 
 ## RE03 · Registrar contato com um cliente sugerido
 
@@ -1910,8 +1910,8 @@ A interface confirma o contato registrado para o cliente.
 **Perguntas:** Como registrar contato em Contatos sugeridos? | Onde registro o resultado de um contato sugerido?
 
 **Fontes:**
-- [Ação no cartão de pendências](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/relationship/ClientPendingModal.tsx)
-- [Campos e salvamento do contato](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/relationship/ContactActivityModal.tsx)
+- [Ação no cartão de pendências](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/relationship/ClientPendingModal.tsx)
+- [Campos e salvamento do contato](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/relationship/ContactActivityModal.tsx)
 
 ## RE04 · Consultar aniversariantes e preparar o contato
 
@@ -1927,7 +1927,7 @@ O cartão mostra quem faz aniversário no mês escolhido. As ações de contato 
 **Perguntas:** Como consultar aniversariantes do mês? | Onde abro a mensagem de aniversário de um cliente? | Como dar parabéns em Contatos sugeridos?
 
 **Fontes:**
-- [Mês, cartões e ações de aniversário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/relationship/BirthdaysMonthPanel.tsx)
+- [Mês, cartões e ações de aniversário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/relationship/BirthdaysMonthPanel.tsx)
 
 ## CO01 · Encontrar uma campanha manual em Comunicações
 
@@ -1940,7 +1940,7 @@ As campanhas manuais aparecem agrupadas por situação. Os filtros de destinatá
 **Perguntas:** Onde vejo as campanhas em andamento? | Como localizar uma campanha manual concluída?
 
 **Fontes:**
-- [Listagem por situação e ações das campanhas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/campaigns/CampaignsTab.tsx)
+- [Listagem por situação e ações das campanhas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/campaigns/CampaignsTab.tsx)
 
 ## CO02 · Preparar uma campanha manual e conferir os destinatários
 
@@ -1956,7 +1956,7 @@ A fila mostra os destinatários pendentes. Cada conversa é aberta individualmen
 **Perguntas:** Como preparar uma campanha manual de WhatsApp? | Onde vejo quem vai receber uma campanha antes de criar?
 
 **Fontes:**
-- [Entrada e fluxo de campanhas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/CommunicationsPage.tsx)
+- [Entrada e fluxo de campanhas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/CommunicationsPage.tsx)
 
 ## CO03 · Trabalhar na fila de uma campanha com filtro ativo
 
@@ -1970,7 +1970,7 @@ A pessoa aparece no filtro da nova situação. Confira o nome da campanha e do d
 **Perguntas:** Como filtrar a fila de uma campanha? | Onde vejo os destinatários enviados ou pulados?
 
 **Fontes:**
-- [Acesso às campanhas e fila de destinatários](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/CommunicationsPage.tsx)
+- [Acesso às campanhas e fila de destinatários](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/CommunicationsPage.tsx)
 
 ## CO04 · Abrir o WhatsApp e registrar a situação de uma mensagem manual
 
@@ -1984,8 +1984,8 @@ Uma mensagem com campos de atendimento exige que o destinatário tenha o atendim
 **Perguntas:** Como marcar uma campanha manual como enviada no WhatsApp? | Como pular um destinatário que não recebeu a campanha?
 
 **Fontes:**
-- [Ações e filtros da fila](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx)
-- [Seleção de campanha e destinatários](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/campaigns/NewCampaignModal.tsx)
+- [Ações e filtros da fila](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx)
+- [Seleção de campanha e destinatários](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/campaigns/NewCampaignModal.tsx)
 
 ## CO05 · Criar uma mensagem padrão e conferir a prévia
 
@@ -2001,8 +2001,8 @@ A mensagem aparece entre as **Ativas**. A prévia usa dados de exemplo para demo
 **Perguntas:** Como criar uma mensagem padrão? | Onde vejo uma prévia da mensagem padrão? | Como colocar o nome do cliente em uma mensagem pronta?
 
 **Fontes:**
-- [Lista e entrada de nova mensagem](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/CommunicationsPage.tsx)
-- [Editor e prévia de mensagem](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx)
+- [Lista e entrada de nova mensagem](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/CommunicationsPage.tsx)
+- [Editor e prévia de mensagem](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx)
 
 ## CO06 · Editar, usar em campanha ou arquivar uma mensagem padrão
 
@@ -2017,8 +2017,8 @@ Confira as mudanças no cartão. As mensagens arquivadas ficam em **Arquivadas**
 **Perguntas:** Como editar uma mensagem padrão? | Como arquivar uma mensagem padrão? | Onde reutilizo uma mensagem pronta em uma campanha?
 
 **Fontes:**
-- [Cartões, ações e filtros de mensagens](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/CommunicationsPage.tsx)
-- [Conteúdo e salvamento da edição](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx)
+- [Cartões, ações e filtros de mensagens](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/CommunicationsPage.tsx)
+- [Conteúdo e salvamento da edição](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx)
 
 ## CO07 · Criar e programar os momentos de uma campanha automática
 
@@ -2033,8 +2033,8 @@ O cartão mostra a campanha e a quantidade de mensagens. Quando houver destinat�
 **Perguntas:** Como criar uma campanha automática? | Como programar duas mensagens para um mesmo evento?
 
 **Fontes:**
-- [Lista e entrada do editor](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/auto-campaigns/AutoCampaignsTab.tsx)
-- [Eventos, mensagem e dias de envio](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx)
+- [Lista e entrada do editor](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/auto-campaigns/AutoCampaignsTab.tsx)
+- [Eventos, mensagem e dias de envio](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx)
 
 ## CO08 · Tratar uma pendência de campanha automática
 
@@ -2048,7 +2048,7 @@ Use **Enviadas** ou **Não enviadas** para conferir o novo estado do cartão.
 **Perguntas:** Como registrar que uma mensagem automática não foi enviada? | Onde trato as mensagens pendentes de campanha automática?
 
 **Fontes:**
-- [Aba de campanhas no painel inicial](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/dashboard/DashboardPage.tsx)
+- [Aba de campanhas no painel inicial](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/dashboard/DashboardPage.tsx)
 
 ## CO09 · Registrar manualmente uma resposta de NPS recebida por mensagem
 
@@ -2063,9 +2063,9 @@ O botão só aparece para destinatários marcados como enviados, vinculados a um
 **Perguntas:** Como registrar manualmente uma resposta de NPS de uma campanha? | Onde lanço uma nota de NPS que o cliente respondeu pelo WhatsApp? | A fila da campanha permite registrar resposta de NPS?
 
 **Fontes:**
-- [Botão e condições na fila da campanha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx)
-- [Formulário de nota e comentário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx)
-- [Registro da resposta pela fila](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/campaigns.integration.test.tsx)
+- [Botão e condições na fila da campanha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx)
+- [Formulário de nota e comentário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx)
+- [Registro da resposta pela fila](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/campaigns.integration.test.tsx)
 
 ## CO10 · Preparar lembrete de uma sessão pelo WhatsApp
 
@@ -2079,8 +2079,8 @@ Revise a conversa antes de enviar. Registre o resultado no CRM depois de tratar 
 **Perguntas:** Como preparar o WhatsApp de lembrete de sessão? | Onde vejo um lembrete de atendimento que está pendente?
 
 **Fontes:**
-- [Aba do painel que exibe os lembretes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/dashboard/DashboardPage.tsx)
-- [Escolha do evento e dados do atendimento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx)
+- [Aba do painel que exibe os lembretes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/dashboard/DashboardPage.tsx)
+- [Escolha do evento e dados do atendimento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx)
 
 ## CO11 · Editar preferências de contato do cliente
 
@@ -2094,7 +2094,7 @@ A seleção permanece gravada na ficha. Confira o destinatário e os canais resp
 **Perguntas:** Como mudar as preferências de contato do cliente? | Onde desligo e-mail ou WhatsApp para um cliente?
 
 **Fontes:**
-- [Preferências de comunicação na ficha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientDetailPage.tsx)
+- [Preferências de comunicação na ficha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientDetailPage.tsx)
 
 ## CT01 · Localizar um documento e consultar os seus detalhes
 
@@ -2109,8 +2109,8 @@ Confira o título, o cliente e a situação na janela. As ações variam conform
 **Perguntas:** Como encontrar um contrato no CRM? | Como filtrar os documentos por situação? | Onde vejo os detalhes de um documento?
 
 **Fontes:**
-- [Filtros e abertura dos detalhes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentsPage.tsx)
-- [Dados e ações por situação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
+- [Filtros e abertura dos detalhes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentsPage.tsx)
+- [Dados e ações por situação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
 
 ## CT02 · Criar um modelo de documento
 
@@ -2126,8 +2126,8 @@ Abra **Modelos** e confira o nome em **Modelos cadastrados**.
 **Perguntas:** Como criar um modelo de contrato? | Onde cadastro um modelo de documento? | Como conferir a prévia de um modelo de contrato?
 
 **Fontes:**
-- [Criação e listagem de modelos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentsPage.tsx)
-- [Editor de conteúdo do modelo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/TemplateBodyEditor.tsx)
+- [Criação e listagem de modelos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentsPage.tsx)
+- [Editor de conteúdo do modelo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/TemplateBodyEditor.tsx)
 
 ## CT03 · Criar uma versão ou restaurar um modelo de documento
 
@@ -2143,9 +2143,9 @@ Confira no **Histórico** a versão marcada como **Em uso**. Ao restaurar, o sis
 **Perguntas:** Como editar um modelo de contrato já cadastrado? | Onde crio uma nova versão de um modelo? | Como restaurar a versão antiga de um modelo de documento?
 
 **Fontes:**
-- [Ações de versões em Modelos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentsPage.tsx)
-- [Edição e criação da versão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/TemplateVersionModal.tsx)
-- [Histórico e restauração](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/TemplateHistoryModal.tsx)
+- [Ações de versões em Modelos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentsPage.tsx)
+- [Edição e criação da versão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/TemplateVersionModal.tsx)
+- [Histórico e restauração](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/TemplateHistoryModal.tsx)
 
 ## CT04 · Excluir um modelo de documento
 
@@ -2159,7 +2159,7 @@ O modelo sai da lista. Confira pelo nome antes de fechar a tela.
 **Perguntas:** Como excluir um modelo de contrato? | Como apagar um modelo de documento? | Onde retiro um modelo cadastrado em Contratos?
 
 **Fontes:**
-- [Ação, confirmação e resultado da exclusão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentsPage.tsx)
+- [Ação, confirmação e resultado da exclusão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentsPage.tsx)
 
 ## CT05 · Montar um rascunho de contrato e conferir o PDF
 
@@ -2175,8 +2175,8 @@ O documento aparece em **Emissões e rascunhos**. O contrato continua como rascu
 **Perguntas:** Como criar um rascunho de contrato? | Como ver a prévia do PDF antes de emitir? | Onde reviso o conteúdo de um documento novo?
 
 **Fontes:**
-- [Entrada de novo documento em Contratos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentsPage.tsx)
-- [Etapas, prévia e criação do rascunho](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentWizard.tsx)
+- [Entrada de novo documento em Contratos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentsPage.tsx)
+- [Etapas, prévia e criação do rascunho](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentWizard.tsx)
 
 ## CT06 · Editar um rascunho e emitir o contrato
 
@@ -2191,8 +2191,8 @@ O documento aparece como emitido. Confira a situação antes de preparar o envio
 **Perguntas:** Como emitir um contrato em rascunho? | Como editar um rascunho de contrato? | Onde finalizo a emissão de um documento?
 
 **Fontes:**
-- [Ações de detalhe do contrato](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
-- [Revisão e emissão do rascunho](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentWizard.tsx)
+- [Ações de detalhe do contrato](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
+- [Revisão e emissão do rascunho](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentWizard.tsx)
 
 ## CT07 · Baixar ou imprimir um contrato emitido
 
@@ -2206,8 +2206,8 @@ O arquivo é baixado como PDF com o título do contrato. Confira a cópia antes 
 **Perguntas:** Como baixar um contrato em PDF? | Como imprimir um contrato emitido? | Onde fica Salvar PDF em Contratos?
 
 **Fontes:**
-- [Botões de download e impressão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
-- [Geração do arquivo e impressão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentsPage.tsx)
+- [Botões de download e impressão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
+- [Geração do arquivo e impressão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentsPage.tsx)
 
 ## CT08 · Gerar e compartilhar um link de assinatura de contrato
 
@@ -2222,8 +2222,8 @@ O link abre o contrato em uma página de assinatura. Se usar o WhatsApp, confirm
 **Perguntas:** Como gerar link de assinatura de contrato? | Como mandar um contrato para assinar por WhatsApp? | Onde copio o link de um contrato?
 
 **Fontes:**
-- [Ação de envio do contrato emitido](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
-- [Geração, prazo e compartilhamento do link](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/SignatureRequest.tsx)
+- [Ação de envio do contrato emitido](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
+- [Geração, prazo e compartilhamento do link](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/SignatureRequest.tsx)
 
 ## CT09 · Registrar a assinatura presencial de um contrato
 
@@ -2238,7 +2238,7 @@ A seção **Assinatura** passa a oferecer **Baixar cópia assinada**.
 **Perguntas:** Como lançar uma assinatura presencial de contrato? | Onde anexo o contrato assinado à mão? | Como registrar assinatura manual em Contratos?
 
 **Fontes:**
-- [Formulário de registro manual e acesso à cópia](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentSignatureActions.tsx)
+- [Formulário de registro manual e acesso à cópia](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentSignatureActions.tsx)
 
 ## CT10 · Acompanhar a assinatura e abrir o contrato assinado
 
@@ -2253,8 +2253,8 @@ A seção identifica quem assinou e quando. O contrato assinado pode ser aberto 
 **Perguntas:** Como saber se um contrato foi assinado? | Onde vejo o contrato assinado pelo cliente? | Como acompanhar a assinatura de um documento?
 
 **Fontes:**
-- [Dados e ações da assinatura](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentSignatureActions.tsx)
-- [Registro do link e da assinatura](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/SignatureLinkRecord.tsx)
+- [Dados e ações da assinatura](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentSignatureActions.tsx)
+- [Registro do link e da assinatura](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/SignatureLinkRecord.tsx)
 
 ## CT11 · Cancelar um documento
 
@@ -2269,8 +2269,8 @@ O detalhe passa a mostrar **Cancelado**. Use o filtro **Situação** na lista pa
 **Perguntas:** Como cancelar um documento? | Como cancelar um contrato emitido? | Onde coloco o motivo do cancelamento de um contrato?
 
 **Fontes:**
-- [Opção de cancelamento nos detalhes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
-- [Confirmação e atualização da lista](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/DocumentsPage.tsx)
+- [Opção de cancelamento nos detalhes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
+- [Confirmação e atualização da lista](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/DocumentsPage.tsx)
 
 ## CT12 · Consultar os documentos enviados para um fornecedor
 
@@ -2283,8 +2283,8 @@ Se a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatur
 **Perguntas:** Onde vejo os documentos de um fornecedor? | Como abrir o registro de um documento enviado ao fornecedor?
 
 **Fontes:**
-- [Cadastro do fornecedor](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/SupplierModal.tsx)
-- [Documentos e ações de assinatura](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/SupplierDocuments.tsx)
+- [Cadastro do fornecedor](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/SupplierModal.tsx)
+- [Documentos e ações de assinatura](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/SupplierDocuments.tsx)
 
 ## AS01 · Ler e assinar um contrato recebido por link
 
@@ -2300,8 +2300,8 @@ A página confirma a assinatura. Consulte a cópia assinada ou use a opção de 
 **Perguntas:** Como assinar um contrato recebido por link? | Como assino um contrato pelo celular? | Onde desenho minha assinatura no contrato?
 
 **Fontes:**
-- [Página pública e confirmação da assinatura](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/PublicSignaturePage.tsx)
-- [Campos do formulário público](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/contracts/PublicSignatureLayout.tsx)
+- [Página pública e confirmação da assinatura](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/PublicSignaturePage.tsx)
+- [Campos do formulário público](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/contracts/PublicSignatureLayout.tsx)
 
 ## AS02 · Ler e assinar um recibo recebido por link
 
@@ -2317,8 +2317,8 @@ A página informa que o recibo foi assinado e mostra a assinatura registrada. Us
 **Perguntas:** Como assinar um recibo que recebi por link? | Como assino um recibo pelo celular? | Como assinar um recibo pelo celular? | Onde coloco meu CPF para assinar o recibo?
 
 **Fontes:**
-- [Página pública e confirmação do recibo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PublicReceiptSignaturePage.tsx)
-- [Teste de assinatura em tela de celular](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/e2e/public-signature.spec.ts)
+- [Página pública e confirmação do recibo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PublicReceiptSignaturePage.tsx)
+- [Teste de assinatura em tela de celular](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/e2e/public-signature.spec.ts)
 
 ## VE01 · Registrar uma venda de produto
 
@@ -2334,7 +2334,7 @@ Confira a venda em **Vendas realizadas** pelo nome do cliente e pelo valor.
 **Perguntas:** Como vender um produto? | Como registrar uma venda de produto? | Onde lanço uma nova venda no estoque?
 
 **Fontes:**
-- [Formulário de venda, pagamento e total](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/NewSaleSection.tsx)
+- [Formulário de venda, pagamento e total](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/NewSaleSection.tsx)
 
 ## VE02 · Dividir o pagamento de uma venda de produto
 
@@ -2350,7 +2350,7 @@ A venda aparece em **Vendas realizadas**. Abra **Ver** para conferir os dados do
 **Perguntas:** Como dividir o pagamento de uma venda? | Como vender um produto com Pix e cartão? | Como adicionar duas formas de pagamento em Vendas?
 
 **Fontes:**
-- [Formas de pagamento no formulário da venda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/NewSaleSection.tsx)
+- [Formas de pagamento no formulário da venda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/NewSaleSection.tsx)
 
 ## VE03 · Consultar o histórico, detalhes e resumo de vendas
 
@@ -2364,8 +2364,8 @@ Em **Vendas realizadas**, confira a venda individual. Em **Resumo**, veja os pro
 **Perguntas:** Como consultar o histórico de vendas de produtos? | Onde vejo os detalhes de uma venda? | Como ver o resumo de vendas de produtos?
 
 **Fontes:**
-- [Histórico, filtros e detalhes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/SalesHistorySection.tsx)
-- [Período e indicadores do resumo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/SalesSummarySection.tsx)
+- [Histórico, filtros e detalhes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/SalesHistorySection.tsx)
+- [Período e indicadores do resumo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/SalesSummarySection.tsx)
 
 ## VE04 · Cancelar uma venda que ainda está a receber
 
@@ -2380,8 +2380,8 @@ Mude o filtro para **Cancelada** ou volte à lista geral para localizar o regist
 **Perguntas:** Como cancelar uma venda a receber? | Onde cancelo uma venda de produto ainda não paga?
 
 **Fontes:**
-- [Histórico e filtro de situação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/SalesHistorySection.tsx)
-- [Motivo e confirmação do cancelamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/SaleDetailsModal.tsx)
+- [Histórico e filtro de situação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/SalesHistorySection.tsx)
+- [Motivo e confirmação do cancelamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/SaleDetailsModal.tsx)
 
 ## VE05 · Estornar o pagamento e cancelar uma venda paga
 
@@ -2396,8 +2396,8 @@ O histórico mostra a venda como **Cancelada**. Confira o recebimento no **Finan
 **Perguntas:** Como estornar e cancelar uma venda paga? | Onde devolvo o pagamento de uma venda de produto?
 
 **Fontes:**
-- [Venda paga e confirmação do estorno e cancelamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/SaleDetailsModal.tsx)
-- [Histórico da venda após o cancelamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/SalesHistorySection.tsx)
+- [Venda paga e confirmação do estorno e cancelamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/SaleDetailsModal.tsx)
+- [Histórico da venda após o cancelamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/SalesHistorySection.tsx)
 
 ## VE06 · Consultar estoque e iniciar uma venda pelo estoque
 
@@ -2411,7 +2411,7 @@ A aba **Nova venda** abre para escolher o cliente e os itens.
 **Perguntas:** Onde consulto o estoque de produtos? | Como iniciar uma venda pelo estoque? | Onde vejo as movimentações dos produtos?
 
 **Fontes:**
-- [Lista, movimentações e atalho de venda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/InventorySection.tsx)
+- [Lista, movimentações e atalho de venda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/InventorySection.tsx)
 
 ## VE07 · Cadastrar um produto com preço e estoque inicial
 
@@ -2427,8 +2427,8 @@ Confira o produto na lista **Produtos**, com preço e quantidade disponíveis.
 **Perguntas:** Como cadastrar um produto? | Como cadastrar produto com estoque inicial? | Onde informo o preço de venda do produto?
 
 **Fontes:**
-- [Estoque e entrada do cadastro](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/InventorySection.tsx)
-- [Campos e salvamento do produto](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/ProductModal.tsx)
+- [Estoque e entrada do cadastro](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/InventorySection.tsx)
+- [Campos e salvamento do produto](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/ProductModal.tsx)
 
 ## VE08 · Editar um produto cadastrado
 
@@ -2443,8 +2443,8 @@ Confira as informações atualizadas na lista. Para corrigir somente a quantidad
 **Perguntas:** Como editar um produto? | Como mudar o preço de um produto cadastrado? | Onde altero o nome de um item do estoque?
 
 **Fontes:**
-- [Ação de edição no estoque](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/InventorySection.tsx)
-- [Formulário do produto](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/ProductModal.tsx)
+- [Ação de edição no estoque](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/InventorySection.tsx)
+- [Formulário do produto](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/ProductModal.tsx)
 
 ## VE09 · Ajustar o estoque de um produto
 
@@ -2459,7 +2459,7 @@ Confira a quantidade atual do produto e a nova movimentação em **Histórico de
 **Perguntas:** Como ajustar o estoque de um produto? | Como corrigir a quantidade em estoque? | Onde registro uma entrada ou saída de estoque?
 
 **Fontes:**
-- [Entrada do ajuste e histórico de estoque](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/InventorySection.tsx)
+- [Entrada do ajuste e histórico de estoque](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/InventorySection.tsx)
 
 ## VE10 · Cadastrar categorias e marcas de produtos
 
@@ -2474,7 +2474,7 @@ Confira o cadastro no quadro em que o criou. As categorias e marcas ativas ficam
 **Perguntas:** Como cadastrar uma categoria de produto? | Como adicionar uma marca de produto? | Onde gerencio as categorias e marcas em Vendas?
 
 **Fontes:**
-- [Quadros e formulário de categorias e marcas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/ProductCatalogsSection.tsx)
+- [Quadros e formulário de categorias e marcas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/ProductCatalogsSection.tsx)
 
 ## VE11 · Cadastrar ou editar um fornecedor em Vendas
 
@@ -2489,7 +2489,7 @@ O nome aparece na lista de **Fornecedores**. Use **Pedidos** na linha correspond
 **Perguntas:** Como cadastrar fornecedor em Vendas? | Onde edito um fornecedor de produtos? | Como abrir os pedidos de um fornecedor em Vendas?
 
 **Fontes:**
-- [Aba Fornecedores em Vendas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/SalesSuppliersSection.tsx)
+- [Aba Fornecedores em Vendas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/SalesSuppliersSection.tsx)
 
 ## FI01 · Localizar e filtrar parcelas em Contas a receber
 
@@ -2507,8 +2507,8 @@ As ações disponíveis variam conforme a situação da parcela. Se a lista esti
 **Perguntas:** Como localizar uma parcela no Financeiro? | Como filtrar parcelas vencidas? | Onde ficam as opções de uma parcela em Contas a receber?
 
 **Fontes:**
-- [Lista de parcelas e ações por situação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceivablesList.tsx)
-- [Datas e filtros de classificação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinanceEntryFilters.tsx)
+- [Lista de parcelas e ações por situação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Datas e filtros de classificação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinanceEntryFilters.tsx)
 
 ## FI03 · Registrar um recebimento parcial
 
@@ -2524,8 +2524,8 @@ A parcela original aparece paga pelo valor recebido. O restante aparece como out
 **Perguntas:** Como registrar um recebimento parcial? | Como dar baixa só em parte da parcela? | Onde informo o valor recebido quando o cliente pagou uma parte?
 
 **Fontes:**
-- [Valor recebido, conferência e baixa parcial](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/SettleModal.tsx)
-- [Exibição das parcelas após a baixa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Valor recebido, conferência e baixa parcial](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/SettleModal.tsx)
+- [Exibição das parcelas após a baixa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceivablesList.tsx)
 
 ## FI04 · Registrar um recebimento dividido entre formas de pagamento
 
@@ -2541,8 +2541,8 @@ A parcela aparece em **Pagas**. O **Recibo** mostra as formas e os valores regis
 **Perguntas:** Como dividir uma baixa em Pix e cartão? | Como dar baixa com duas formas de pagamento? | Como registrar um recebimento dividido?
 
 **Fontes:**
-- [Formas, valores e confirmação da baixa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/SettleModal.tsx)
-- [Apresentação do pagamento no recibo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceiptModal.tsx)
+- [Formas, valores e confirmação da baixa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/SettleModal.tsx)
+- [Apresentação do pagamento no recibo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceiptModal.tsx)
 
 ## FI05 · Ajustar o valor de uma parcela em aberto
 
@@ -2557,8 +2557,8 @@ Confira o valor atualizado. A justificativa fica registrada no histórico.
 **Perguntas:** Como ajustar uma parcela em aberto? | Onde corrijo o valor de uma parcela antes da baixa?
 
 **Fontes:**
-- [Ações da parcela](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceivablesList.tsx)
-- [Valor e justificativa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceivableAdjustModal.tsx)
+- [Ações da parcela](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Valor e justificativa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceivableAdjustModal.tsx)
 
 ## FI07 · Anexar, baixar ou excluir um comprovante de pagamento
 
@@ -2573,8 +2573,8 @@ Confira os arquivos em **Anexados**. O formulário da baixa aceita PDF, PNG ou J
 **Perguntas:** Como anexar comprovante de pagamento? | Onde baixo um comprovante da parcela? | Como remover um comprovante da baixa?
 
 **Fontes:**
-- [Anexo no formulário de baixa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/SettleModal.tsx)
-- [Lista, download e exclusão com motivo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PaymentProofs.tsx)
+- [Anexo no formulário de baixa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/SettleModal.tsx)
+- [Lista, download e exclusão com motivo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PaymentProofs.tsx)
 
 ## FI08 · Consultar, imprimir ou acompanhar um recibo
 
@@ -2590,8 +2590,8 @@ O número do recibo aparece no topo da janela. Use a opção de impressão do na
 **Perguntas:** Como ver o recibo de uma parcela? | Como imprimir um recibo de pagamento? | Onde acompanho a assinatura do recibo?
 
 **Fontes:**
-- [Ação Recibo na parcela paga](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceivablesList.tsx)
-- [Detalhes, impressão e acompanhamento do recibo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceiptModal.tsx)
+- [Ação Recibo na parcela paga](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Detalhes, impressão e acompanhamento do recibo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceiptModal.tsx)
 
 ## FI09 · Preparar o envio do link de assinatura de um recibo
 
@@ -2606,7 +2606,7 @@ O cliente abre o link para conferir e assinar o recibo. Volte à seção **Assin
 **Perguntas:** Como enviar recibo para assinatura pelo WhatsApp? | Onde fica o link para o cliente assinar o recibo? | Como compartilhar a assinatura de um recibo?
 
 **Fontes:**
-- [Link e acompanhamento no recibo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceiptModal.tsx)
+- [Link e acompanhamento no recibo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceiptModal.tsx)
 
 ## FI10 · Preparar um contato sobre uma parcela
 
@@ -2620,8 +2620,8 @@ Confira o destinatário e o conteúdo no canal antes de enviar. A mensagem prepa
 **Perguntas:** Como contatar um cliente sobre uma parcela? | Onde preparo um lembrete de parcela pelo WhatsApp?
 
 **Fontes:**
-- [Menu da parcela](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceivablesList.tsx)
-- [Mensagem e canais da parcela](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceivableContactModal.tsx)
+- [Menu da parcela](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Mensagem e canais da parcela](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceivableContactModal.tsx)
 
 ## FI12 · Renegociar parcelas a receber
 
@@ -2635,8 +2635,8 @@ As parcelas antigas ficam canceladas e as novas aparecem com o valor dividido e 
 **Perguntas:** Como renegociar parcelas de um cliente? | Onde divido um saldo em novas parcelas no Financeiro?
 
 **Fontes:**
-- [Seleção e ação na lista](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReceivablesList.tsx)
-- [Execução da renegociação no Financeiro](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinancePage.tsx)
+- [Seleção e ação na lista](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Execução da renegociação no Financeiro](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinancePage.tsx)
 
 ## FI13 · Corrigir datas ou classificar um lançamento
 
@@ -2651,8 +2651,8 @@ Abra a linha novamente para conferir a classificação e as datas corrigidas.
 **Perguntas:** Como corrigir a data de um lançamento? | Onde altero a categoria ou centro de custo de um lançamento?
 
 **Fontes:**
-- [Seleção e ações dos lançamentos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinanceClassificationPanel.tsx)
-- [Fluxo dos lançamentos financeiros](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinancePage.tsx)
+- [Seleção e ações dos lançamentos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinanceClassificationPanel.tsx)
+- [Fluxo dos lançamentos financeiros](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinancePage.tsx)
 
 ## FI14 · Localizar e filtrar contas a pagar
 
@@ -2667,8 +2667,8 @@ Confira o resultado nos grupos da lista, como **A vencer**. Use **Limpar campos*
 **Perguntas:** Como filtrar contas a pagar? | Onde localizo uma despesa no Financeiro? | Como buscar um lançamento em Contas a pagar?
 
 **Fontes:**
-- [Contas a pagar e acesso à lista](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinancePage.tsx)
-- [Pesquisa e filtros dos lançamentos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinanceEntryFilters.tsx)
+- [Contas a pagar e acesso à lista](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinancePage.tsx)
+- [Pesquisa e filtros dos lançamentos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinanceEntryFilters.tsx)
 
 ## FI15 · Registrar uma despesa pontual
 
@@ -2683,8 +2683,8 @@ Abra **Contas a pagar** e confira a despesa com a data e o valor informados.
 **Perguntas:** Como registrar uma despesa pontual? | Como cadastrar uma conta a pagar de uma vez? | Onde lanço uma despesa avulsa?
 
 **Fontes:**
-- [Entrada e lista de contas a pagar](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinancePage.tsx)
-- [Campos e salvamento da despesa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/NewExpenseModal.tsx)
+- [Entrada e lista de contas a pagar](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinancePage.tsx)
+- [Campos e salvamento da despesa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/NewExpenseModal.tsx)
 
 ## FI16 · Cadastrar uma despesa recorrente
 
@@ -2701,8 +2701,8 @@ A recorrência aparece em **Contas a pagar → Despesas fixas**. Cada mês do pe
 **Perguntas:** Como cadastrar uma despesa recorrente? | Como lançar a mesma conta todos os meses? | Onde cadastro uma despesa fixa?
 
 **Fontes:**
-- [Opções e salvamento da despesa fixa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/NewExpenseModal.tsx)
-- [Lista de despesas fixas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/RecurringPayablesSection.tsx)
+- [Opções e salvamento da despesa fixa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/NewExpenseModal.tsx)
+- [Lista de despesas fixas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/RecurringPayablesSection.tsx)
 
 ## FI17 · Editar ou encerrar uma despesa recorrente
 
@@ -2717,9 +2717,9 @@ Confira a situação na lista. A partir do mês seguinte ao último mês escolhi
 **Perguntas:** Como editar uma despesa fixa? | Como encerrar uma recorrência no Financeiro? | Onde paro de gerar uma conta todo mês?
 
 **Fontes:**
-- [Lista de recorrências e ações](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/RecurringPayablesSection.tsx)
-- [Formulário de edição](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/RecurringPayableModal.tsx)
-- [Último mês e confirmação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/RecurringPayableEndModal.tsx)
+- [Lista de recorrências e ações](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/RecurringPayablesSection.tsx)
+- [Formulário de edição](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/RecurringPayableModal.tsx)
+- [Último mês e confirmação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/RecurringPayableEndModal.tsx)
 
 ## FI18 · Registrar o pagamento de uma conta a pagar
 
@@ -2735,8 +2735,8 @@ Confira a conta entre os pagamentos registrados. Para corrigir um pagamento regi
 **Perguntas:** Como pagar uma conta a pagar no CRM? | Como registrar pagamento de despesa? | Onde confirmo o pagamento de uma conta?
 
 **Fontes:**
-- [Ação Pagar na lista](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayablesList.tsx)
-- [Datas, forma e confirmação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayableModal.tsx)
+- [Ação Pagar na lista](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayablesList.tsx)
+- [Datas, forma e confirmação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayableModal.tsx)
 
 ## FI19 · Informar o valor de uma conta a pagar variável
 
@@ -2750,8 +2750,8 @@ Confira o valor e a ação **Pagar** na linha. **Informar valor** aparece nas co
 **Perguntas:** Como ajustar uma conta a pagar de valor variável? | Onde informo o valor do mês de uma despesa fixa variável?
 
 **Fontes:**
-- [Condição da ação Informar valor](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayablesList.tsx)
-- [Valor mensal e confirmação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayableAmountModal.tsx)
+- [Condição da ação Informar valor](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayablesList.tsx)
+- [Valor mensal e confirmação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayableAmountModal.tsx)
 
 ## FI20 · Estornar o pagamento de uma despesa
 
@@ -2766,8 +2766,8 @@ A conta volta a ficar em aberto. A ação **Pagar** fica disponível novamente.
 **Perguntas:** Como estornar o pagamento de uma despesa? | Como desfazer um pagamento em Contas a pagar? | Onde registro por que estou estornando uma despesa?
 
 **Fontes:**
-- [Ação na linha da despesa paga](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayablesList.tsx)
-- [Motivo e confirmação do estorno](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReversePaymentModal.tsx)
+- [Ação na linha da despesa paga](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayablesList.tsx)
+- [Motivo e confirmação do estorno](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReversePaymentModal.tsx)
 
 ## FI21 · Cadastrar uma categoria ou um centro de custo
 
@@ -2781,8 +2781,8 @@ O cadastro fica disponível nos campos de classificação dos lançamentos. Em *
 **Perguntas:** Como cadastrar uma categoria de despesa? | Onde crio um centro de custo? | Como criar uma categoria no Financeiro?
 
 **Fontes:**
-- [Atalhos e salvamento da classificação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinancePage.tsx)
-- [Opções de cadastro na despesa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/NewExpenseModal.tsx)
+- [Atalhos e salvamento da classificação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinancePage.tsx)
+- [Opções de cadastro na despesa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/NewExpenseModal.tsx)
 
 ## FI22 · Cadastrar ou editar um fornecedor para uma despesa
 
@@ -2796,8 +2796,8 @@ O fornecedor fica disponível na lista e aparece associado à despesa salva.
 **Perguntas:** Como cadastrar um fornecedor direto no Financeiro? | Onde edito os dados de um fornecedor usado em despesas?
 
 **Fontes:**
-- [Cadastro dentro da despesa](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/NewExpenseModal.tsx)
-- [Edição e salvamento do fornecedor](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/SupplierModal.tsx)
+- [Cadastro dentro da despesa](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/NewExpenseModal.tsx)
+- [Edição e salvamento do fornecedor](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/SupplierModal.tsx)
 
 ## FI23 · Consultar ou cadastrar um pedido de fornecedor
 
@@ -2812,7 +2812,7 @@ Confira o número do pedido na lista do fornecedor.
 **Perguntas:** Como cadastrar um pedido de fornecedor? | Onde consulto os pedidos de um fornecedor?
 
 **Fontes:**
-- [Acesso aos pedidos pelo fornecedor](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/sales/SalesSuppliersSection.tsx)
+- [Acesso aos pedidos pelo fornecedor](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/sales/SalesSuppliersSection.tsx)
 
 ## FI24 · Consultar comissões e entender a regra aplicada
 
@@ -2826,8 +2826,8 @@ A tela informa que a comissão cadastrada no usuário prevalece sobre a regra do
 **Perguntas:** Onde vejo as comissões no Financeiro? | Como descobrir qual percentual entrou na comissão do profissional?
 
 **Fontes:**
-- [Aba de comissões e precedência das regras](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinancePage.tsx)
-- [Tabela e situação de cada comissão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/CommissionsList.tsx)
+- [Aba de comissões e precedência das regras](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinancePage.tsx)
+- [Tabela e situação de cada comissão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/CommissionsList.tsx)
 
 ## FI25 · Criar uma regra de comissão e conferir o recálculo
 
@@ -2842,7 +2842,7 @@ Volte à tabela e confira o percentual e a comissão na linha do profissional. A
 **Perguntas:** Como criar uma regra de comissão? | Onde altero o percentual e reviso o recálculo das comissões?
 
 **Fontes:**
-- [Regra, vigência e prévia de recálculo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/CommissionRuleModal.tsx)
+- [Regra, vigência e prévia de recálculo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/CommissionRuleModal.tsx)
 
 ## FI26 · Gerar comissões do mês
 
@@ -2856,8 +2856,8 @@ As comissões elegíveis aparecem com a situação e os valores calculados. A li
 **Perguntas:** Como gerar comissões do mês? | Onde calculo comissões de atendimentos ou presença em turma?
 
 **Fontes:**
-- [Ação de gerar comissões](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinancePage.tsx)
-- [Comissões calculadas e seus valores](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/CommissionsList.tsx)
+- [Ação de gerar comissões](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinancePage.tsx)
+- [Comissões calculadas e seus valores](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/CommissionsList.tsx)
 
 ## FI27 · Pagar ou estornar uma comissão pela folha
 
@@ -2872,9 +2872,9 @@ O pagamento e o estorno atuam sobre a despesa da folha inteira, que pode incluir
 **Perguntas:** Como pagar ou estornar uma comissão? | Como estornar o pagamento da folha com comissão?
 
 **Fontes:**
-- [Comissões e vínculo com a folha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/CommissionsList.tsx)
-- [Pagamentos em Contas a pagar](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayablesList.tsx)
-- [Motivo e confirmação do estorno](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ReversePaymentModal.tsx)
+- [Comissões e vínculo com a folha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/CommissionsList.tsx)
+- [Pagamentos em Contas a pagar](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayablesList.tsx)
+- [Motivo e confirmação do estorno](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ReversePaymentModal.tsx)
 
 ## FI28 · Conciliar ajustes de uma comissão já paga
 
@@ -2888,8 +2888,8 @@ A comissão original e seu pagamento continuam registrados. O CRM lança a difer
 **Perguntas:** Como conciliar ajuste de comissão já paga? | Onde vejo o ajuste de comissão após corrigir a presença na turma?
 
 **Fontes:**
-- [Lançamentos de comissão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/CommissionsList.tsx)
-- [Revisão da origem e histórico de ajustes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/CommissionReconciliationModal.tsx)
+- [Lançamentos de comissão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/CommissionsList.tsx)
+- [Revisão da origem e histórico de ajustes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/CommissionReconciliationModal.tsx)
 
 ## FI29 · Configurar um colaborador para aparecer na folha
 
@@ -2904,8 +2904,8 @@ O colaborador com salário aparece na folha da competência consultada.
 **Perguntas:** Como incluir um colaborador na folha? | Onde defino o salário mensal de um usuário?
 
 **Fontes:**
-- [Configuração de salário no usuário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/UserFormModal.tsx)
-- [Lista da folha por filial](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayrollSection.tsx)
+- [Configuração de salário no usuário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/UserFormModal.tsx)
+- [Lista da folha por filial](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayrollSection.tsx)
 
 ## FI30 · Registrar desconto, recompensa ou vale para um colaborador
 
@@ -2920,9 +2920,9 @@ Abra **Detalhes** do colaborador para conferir os ajustes e vales na composiçã
 **Perguntas:** Como lançar um desconto ou recompensa na folha? | Onde registro um vale de salário?
 
 **Fontes:**
-- [Ações e composição da folha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayrollSection.tsx)
-- [Formulário de ajuste](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayrollEntryModal.tsx)
-- [Formulário de vale](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayrollAdvanceModal.tsx)
+- [Ações e composição da folha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayrollSection.tsx)
+- [Formulário de ajuste](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayrollEntryModal.tsx)
+- [Formulário de vale](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayrollAdvanceModal.tsx)
 
 ## FI31 · Lançar a folha do mês e desfazer o lançamento
 
@@ -2937,8 +2937,8 @@ O lançamento leva o valor à conta a pagar da folha. Ao desfazer, os itens volt
 **Perguntas:** Como lançar a folha de pagamento do mês? | Como desfazer uma folha lançada no financeiro?
 
 **Fontes:**
-- [Ações e composição da folha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayrollSection.tsx)
-- [Prévia e lançamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/PayrollLaunchModal.tsx)
+- [Ações e composição da folha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayrollSection.tsx)
+- [Prévia e lançamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/PayrollLaunchModal.tsx)
 
 ## FI32 · Consultar a previsão financeira e o caixa diário
 
@@ -2953,9 +2953,9 @@ Revise a data ou o horizonte antes de comparar os valores. A previsão distingue
 **Perguntas:** Onde vejo o caixa do dia? | Como consultar a previsão financeira? | Como mudar o horizonte da previsão?
 
 **Fontes:**
-- [Abas de Caixa do dia e Previsão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinancePage.tsx)
-- [Consulta por data](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/DailyCashSection.tsx)
-- [Horizonte e totais da previsão](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/FinanceForecastSection.tsx)
+- [Abas de Caixa do dia e Previsão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinancePage.tsx)
+- [Consulta por data](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/DailyCashSection.tsx)
+- [Horizonte e totais da previsão](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/FinanceForecastSection.tsx)
 
 ## FI33 · Registrar uma operação externa com comprovante
 
@@ -2971,7 +2971,7 @@ O registro aparece em **Documentos fiscais e operações com parceiros**, com a 
 **Perguntas:** Como registrar uma nota emitida fora do CRM? | Onde cadastro uma operação externa com parceiro? | Como lançar um documento fiscal externo com comprovante?
 
 **Fontes:**
-- [Formulário, anexos e lista de operações externas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ExternalOperationsPanel.tsx)
+- [Formulário, anexos e lista de operações externas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ExternalOperationsPanel.tsx)
 
 ## FI34 · Consultar ou baixar o comprovante de uma operação externa
 
@@ -2985,7 +2985,7 @@ O navegador baixa o arquivo anexado à operação.
 **Perguntas:** Onde baixo o comprovante de uma operação externa? | Como consultar comprovante de documento fiscal registrado? | Onde está o anexo da operação com parceiro?
 
 **Fontes:**
-- [Listagem e download de comprovante externo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/finance/ExternalOperationsPanel.tsx)
+- [Listagem e download de comprovante externo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/finance/ExternalOperationsPanel.tsx)
 
 ## RL02 · Consultar a retenção de clientes
 
@@ -2999,8 +2999,8 @@ Confira o período escolhido antes de comparar os resultados.
 **Perguntas:** Onde consulto a retenção de clientes? | Como ver a retenção mês a mês? | Onde fica o relatório de retenção?
 
 **Fontes:**
-- [Período e abas de clientes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ReportsPage.tsx)
-- [Quadro de retenção](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ClientInsights.tsx)
+- [Período e abas de clientes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ReportsPage.tsx)
+- [Quadro de retenção](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ClientInsights.tsx)
 
 ## RL03 · Consultar o ranking de sessões e as faixas etárias
 
@@ -3015,8 +3015,8 @@ Os dois quadros ficam na mesma aba. Confira o período no alto antes de comparar
 **Perguntas:** Onde vejo o ranking de clientes? | Como ver as faixas etárias no relatório? | Onde vejo quem concluiu mais sessões?
 
 **Fontes:**
-- [Abas de análise de clientes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ReportsPage.tsx)
-- [Ranking e agrupamento por idade](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ClientInsights.tsx)
+- [Abas de análise de clientes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ReportsPage.tsx)
+- [Ranking e agrupamento por idade](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ClientInsights.tsx)
 
 ## RL04 · Analisar clientes sem retorno no relatório
 
@@ -3030,8 +3030,8 @@ A aba apresenta os clientes identificados pelo relatório. Quando o quadro estiv
 **Perguntas:** Onde vejo clientes sem retorno nos relatórios? | Como consultar relatório de clientes que não voltaram? | Onde analiso o quadro Clientes sem retorno?
 
 **Fontes:**
-- [Aba Sem retorno](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ReportsPage.tsx)
-- [Quadro de clientes sem retorno](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ClientInsights.tsx)
+- [Aba Sem retorno](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ReportsPage.tsx)
+- [Quadro de clientes sem retorno](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ClientInsights.tsx)
 
 ## RL05 · Consultar clientes e contratações nos relatórios
 
@@ -3046,8 +3046,8 @@ Depois da consulta, **Exportar clientes** e **Imprimir clientes** usam os result
 **Perguntas:** Como consultar clientes no relatório? | Onde vejo frequência e produtos contratados por cliente? | Como filtrar o relatório de clientes por nome?
 
 **Fontes:**
-- [Abas de relatórios de clientes](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ReportsPage.tsx)
-- [Busca, filtros e resultados da consulta](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ClientDetailsSection.tsx)
+- [Abas de relatórios de clientes](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ReportsPage.tsx)
+- [Busca, filtros e resultados da consulta](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ClientDetailsSection.tsx)
 
 ## RL06 · Consultar o desempenho de campanhas nos relatórios
 
@@ -3062,8 +3062,8 @@ Confira o intervalo e o tipo selecionados antes de comparar os resultados.
 **Perguntas:** Onde vejo o desempenho de uma campanha? | Como filtrar o relatório de campanhas? | Onde exporto a planilha de campanhas?
 
 **Fontes:**
-- [Período e acesso ao relatório](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ReportsPage.tsx)
-- [Filtros e exportação de campanhas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/CampaignsSection.tsx)
+- [Período e acesso ao relatório](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ReportsPage.tsx)
+- [Filtros e exportação de campanhas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/CampaignsSection.tsx)
 
 ## RL07 · Ler a composição da DRE
 
@@ -3079,7 +3079,7 @@ Os valores são agrupados pela competência. A lista de lançamentos por categor
 **Perguntas:** Onde vejo a DRE por competência? | Como conferir as categorias e baixar a DRE? | Como ver os lançamentos de uma categoria da DRE?
 
 **Fontes:**
-- [Totais, composição e exportação da DRE](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/DreSection.tsx)
+- [Totais, composição e exportação da DRE](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/DreSection.tsx)
 
 ## RL08 · Configurar pró-labore a partir do relatório
 
@@ -3093,8 +3093,8 @@ Abra a configuração novamente para conferir o percentual salvo. O relatório u
 **Perguntas:** Como configurar pró-labore no relatório? | Onde mudo o percentual ou a base de pró-labore?
 
 **Fontes:**
-- [Atalho no relatório financeiro](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/FinancialSection.tsx)
-- [Percentual, base e salvamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ProLaboreModal.tsx)
+- [Atalho no relatório financeiro](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/FinancialSection.tsx)
+- [Percentual, base e salvamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ProLaboreModal.tsx)
 
 ## RL09 · Consultar e exportar o extrato financeiro
 
@@ -3110,8 +3110,8 @@ O navegador baixa uma planilha XLSX identificada pelo intervalo do extrato.
 **Perguntas:** Como consultar o extrato financeiro? | Como baixar o extrato financeiro filtrado? | Onde exporto o extrato nos relatórios?
 
 **Fontes:**
-- [Aba de relatórios financeiros](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/FinancialSection.tsx)
-- [Filtros e exportação do extrato](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/FinancialLedger.tsx)
+- [Aba de relatórios financeiros](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/FinancialSection.tsx)
+- [Filtros e exportação do extrato](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/FinancialLedger.tsx)
 
 ## RL10 · Filtrar e baixar o relatório detalhado de vendas
 
@@ -3126,8 +3126,8 @@ O navegador baixa uma planilha XLSX com o intervalo no nome do arquivo.
 **Perguntas:** Como exportar o relatório gerencial de vendas? | Como baixar o Excel detalhado de vendas? | Como filtrar o período de um relatório de vendas antes de baixar?
 
 **Fontes:**
-- [Período, seção e atualização do relatório](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ReportsPage.tsx)
-- [Exportação das vendas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/SalesInsights.tsx)
+- [Período, seção e atualização do relatório](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ReportsPage.tsx)
+- [Exportação das vendas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/SalesInsights.tsx)
 
 ## RL11 · Consultar indicadores, rentabilidade e vendas detalhadas
 
@@ -3141,10 +3141,10 @@ Use o mesmo período para comparar as abas. Em **Vendas**, use **Exportar Excel 
 **Perguntas:** Onde vejo indicadores e rentabilidade? | Como consultar rentabilidade por serviço? | Onde analiso as vendas detalhadas nos relatórios?
 
 **Fontes:**
-- [Abas do resumo geral](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ReportsPage.tsx)
-- [Indicadores da clínica](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ClinicIndicators.tsx)
-- [Tabelas de rentabilidade](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/ProfitTables.tsx)
-- [Detalhes de vendas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/reports/SalesInsights.tsx)
+- [Abas do resumo geral](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ReportsPage.tsx)
+- [Indicadores da clínica](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ClinicIndicators.tsx)
+- [Tabelas de rentabilidade](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/ProfitTables.tsx)
+- [Detalhes de vendas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/reports/SalesInsights.tsx)
 
 ## HI01 · Pesquisar e filtrar alterações no Histórico
 
@@ -3159,7 +3159,7 @@ Confira se os registros correspondem à área, à atividade, à pessoa ou ao per
 **Perguntas:** Como pesquisar no histórico de alterações? | Como filtrar o histórico por responsável? | Como ver só as alterações da Agenda no Histórico?
 
 **Fontes:**
-- [Campos, filtros e resultados do Histórico](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/history/HistoryPage.tsx)
+- [Campos, filtros e resultados do Histórico](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/history/HistoryPage.tsx)
 
 ## HI02 · Abrir os detalhes de uma alteração no Histórico
 
@@ -3173,8 +3173,8 @@ Em **Resumo**, confira **O que aconteceu**, a **Área**, **Quem realizou** e **Q
 **Perguntas:** Como abrir os detalhes de uma alteração? | Onde vejo quem fez uma alteração no histórico? | Como ler os detalhes técnicos de uma alteração?
 
 **Fontes:**
-- [Botão Ver detalhes no Histórico](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/history/HistoryPage.tsx)
-- [Abas e campos da alteração](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/history/HistoryDetailsModal.tsx)
+- [Botão Ver detalhes no Histórico](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/history/HistoryPage.tsx)
+- [Abas e campos da alteração](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/history/HistoryDetailsModal.tsx)
 
 ## CF01 · Navegar em Configurações e salvar ou descartar alterações
 
@@ -3189,7 +3189,7 @@ Ao descartar, os campos voltam aos valores salvos. Ao gravar, abra a aba de novo
 **Perguntas:** Como navegar nas configurações? | Como descartar uma alteração ao mudar de aba? | Como salvar as alterações em Configurações?
 
 **Fontes:**
-- [Navegação e confirmação da troca de aba](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/SettingsPage.tsx)
+- [Navegação e confirmação da troca de aba](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/SettingsPage.tsx)
 
 ## CF02 · Atualizar dados e apresentação da clínica
 
@@ -3203,7 +3203,7 @@ Reabra **Clínica** e confira os dados salvos.
 **Perguntas:** Como alterar a razão social da clínica? | Onde edito os dados e o logotipo da clínica?
 
 **Fontes:**
-- [Campos de identificação, imagem e salvamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/ClinicSettingsContent.tsx)
+- [Campos de identificação, imagem e salvamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/ClinicSettingsContent.tsx)
 
 ## CF03 · Cadastrar um usuário e associá-lo às filiais
 
@@ -3218,8 +3218,8 @@ Confira o usuário na lista. A seção **Filiais** aparece para usuário comum q
 **Perguntas:** Como cadastrar um usuário e dar acesso às filiais? | Onde escolho as unidades que um usuário pode acessar?
 
 **Fontes:**
-- [Lista e ações dos usuários](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/AdminUsersContent.tsx)
-- [Cadastro e seleção de filiais](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/UserFormModal.tsx)
+- [Lista e ações dos usuários](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/AdminUsersContent.tsx)
+- [Cadastro e seleção de filiais](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/UserFormModal.tsx)
 
 ## CF04 · Selecionar, copiar ou limpar permissões de um usuário
 
@@ -3233,8 +3233,8 @@ Reabra o cadastro e confira as permissões. Para usar ações de um módulo, o u
 **Perguntas:** Como copiar permissões de um usuário? | Como retirar ou mudar permissões de um usuário comum?
 
 **Fontes:**
-- [Cópia e salvamento das permissões](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/UserFormModal.tsx)
-- [Seleção e limpeza de permissões](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/PermissionEditor.tsx)
+- [Cópia e salvamento das permissões](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/UserFormModal.tsx)
+- [Seleção e limpeza de permissões](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/PermissionEditor.tsx)
 
 ## CF05 · Editar, desativar ou ativar um usuário
 
@@ -3249,8 +3249,8 @@ Confira os dados e a situação na lista. A gestão de usuários está disponív
 **Perguntas:** Como editar um usuário? | Como desativar um usuário do CRM? | Como reativar um usuário inativo?
 
 **Fontes:**
-- [Lista e ações Ativar e Desativar](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/AdminUsersContent.tsx)
-- [Campos e salvamento da edição](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/UserFormModal.tsx)
+- [Lista e ações Ativar e Desativar](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/AdminUsersContent.tsx)
+- [Campos e salvamento da edição](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/UserFormModal.tsx)
 
 ## CF06 · Redefinir a senha ou encerrar sessões de outro usuário
 
@@ -3264,8 +3264,8 @@ A nova senha pode ser usada na próxima entrada. Depois de encerrar acessos, o u
 **Perguntas:** Como redefinir a senha de outro usuário? | Como derrubar as sessões de um usuário pelo cadastro?
 
 **Fontes:**
-- [Ações administrativas sobre o usuário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/AdminUsersContent.tsx)
-- [Formulário da senha nova](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/ResetPasswordModal.tsx)
+- [Ações administrativas sobre o usuário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/AdminUsersContent.tsx)
+- [Formulário da senha nova](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/ResetPasswordModal.tsx)
 
 ## CF07 · Configurar um profissional de Agenda e sua comissão
 
@@ -3281,8 +3281,8 @@ Reabra o cadastro para conferir o nome de Agenda e o percentual salvo.
 **Perguntas:** Como ligar um usuário à agenda? | Onde cadastro a comissão de um profissional da agenda?
 
 **Fontes:**
-- [Dados de Agenda e comissão no usuário](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/UserFormModal.tsx)
-- [Campos do profissional](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/UserAgendaFields.tsx)
+- [Dados de Agenda e comissão no usuário](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/UserFormModal.tsx)
+- [Campos do profissional](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/UserAgendaFields.tsx)
 
 ## CF08 · Cadastrar uma filial
 
@@ -3297,8 +3297,8 @@ Confira o nome da nova unidade na lista **Filiais**. O seletor do cabeçalho fic
 **Perguntas:** Como cadastrar uma filial? | Como criar uma nova unidade? | Onde adiciono uma filial da clínica?
 
 **Fontes:**
-- [Lista de filiais e botão Nova filial](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/BranchesContent.tsx)
-- [Campos do cadastro de filial](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/BranchModal.tsx)
+- [Lista de filiais e botão Nova filial](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/BranchesContent.tsx)
+- [Campos do cadastro de filial](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/BranchModal.tsx)
 
 ## CF09 · Editar ou inativar uma filial
 
@@ -3313,8 +3313,8 @@ Confira o nome e a situação na lista. A filial inativa deixa de aparecer no se
 **Perguntas:** Como editar uma filial? | Como inativar uma unidade? | Como reativar uma filial?
 
 **Fontes:**
-- [Listagem e ação Editar](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/BranchesContent.tsx)
-- [Campos, situação e salvamento da filial](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/BranchModal.tsx)
+- [Listagem e ação Editar](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/BranchesContent.tsx)
+- [Campos, situação e salvamento da filial](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/BranchModal.tsx)
 
 ## CF10 · Renomear uma aba do menu
 
@@ -3328,7 +3328,7 @@ Para recuperar os rótulos originais, use **Restaurar nomes padrão** e confira 
 **Perguntas:** Como trocar o nome de uma aba do menu? | Onde altero o rótulo das páginas no menu do CRM?
 
 **Fontes:**
-- [Campos, rótulos e salvamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/NavTabLabelsContent.tsx)
+- [Campos, rótulos e salvamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/NavTabLabelsContent.tsx)
 
 ## CF11 · Cadastrar um plano no catálogo
 
@@ -3343,8 +3343,8 @@ Confira o novo plano na lista. A quantidade de sessões pedida pode variar confo
 **Perguntas:** Como cadastrar um plano no catálogo? | Onde crio um modelo de plano para vender? | Como definir os serviços de um plano cadastrado?
 
 **Fontes:**
-- [Lista e ações do catálogo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/PlanTemplatesContent.tsx)
-- [Campos do plano](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/PlanTemplateModal.tsx)
+- [Lista e ações do catálogo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/PlanTemplatesContent.tsx)
+- [Campos do plano](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/PlanTemplateModal.tsx)
 
 ## CF12 · Editar, desativar ou ativar um plano do catálogo
 
@@ -3358,8 +3358,8 @@ Confira a situação na lista. O catálogo mostra **Ativar** na linha do plano d
 **Perguntas:** Como editar um plano no catálogo? | Como desativar um modelo de plano?
 
 **Fontes:**
-- [Ações de edição e situação no catálogo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/PlanTemplatesContent.tsx)
-- [Formulário de edição do plano](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/PlanTemplateModal.tsx)
+- [Ações de edição e situação no catálogo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/PlanTemplatesContent.tsx)
+- [Formulário de edição do plano](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/PlanTemplateModal.tsx)
 
 ## CF13 · Adicionar um feriado manualmente
 
@@ -3373,8 +3373,8 @@ O feriado aparece na lista com a data e o nome informados. Na Agenda, consulte o
 **Perguntas:** Como adicionar um feriado manual? | Onde cadastro um feriado na agenda? | Como colocar um feriado local no CRM?
 
 **Fontes:**
-- [Cadastro e lista de feriados](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/HolidaysContent.tsx)
-- [Exibição do feriado na Agenda](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/agenda/AgendaPage.tsx)
+- [Cadastro e lista de feriados](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/HolidaysContent.tsx)
+- [Exibição do feriado na Agenda](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/agenda/AgendaPage.tsx)
 
 ## CF14 · Importar ou excluir feriados
 
@@ -3389,8 +3389,8 @@ Os feriados importados aparecem com suas datas. Depois da exclusão, confira se 
 **Perguntas:** Como importar os feriados do ano? | Como remover um feriado do calendário? | Onde escolho quais feriados importar?
 
 **Fontes:**
-- [Seleção e importação de feriados](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/ImportHolidaysModal.tsx)
-- [Lista e ação de excluir](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/HolidaysContent.tsx)
+- [Seleção e importação de feriados](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/ImportHolidaysModal.tsx)
+- [Lista e ação de excluir](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/HolidaysContent.tsx)
 
 ## CF15 · Configurar a finalização automática dos atendimentos
 
@@ -3404,7 +3404,7 @@ Confira o aviso de finalização ligada ou desligada. Com ela ativa, o prazo com
 **Perguntas:** Como ligar ou desligar a finalização automática? | Onde altero o prazo para o CRM finalizar atendimentos?
 
 **Fontes:**
-- [Prazo, ativação e salvamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/AutoFinalizationContent.tsx)
+- [Prazo, ativação e salvamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/AutoFinalizationContent.tsx)
 
 ## CF16 · Definir parcelamento por forma de pagamento
 
@@ -3418,22 +3418,22 @@ Reabra a aba e confira o limite salvo. O máximo limita as opções de parcelame
 **Perguntas:** Onde defino o máximo de parcelas no cartão? | Como liberar ou limitar as parcelas de uma forma de pagamento?
 
 **Fontes:**
-- [Formas disponíveis e limites de parcelas](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/PaymentMethodsContent.tsx)
+- [Formas disponíveis e limites de parcelas](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/PaymentMethodsContent.tsx)
 
 ## CF17 · Consultar, criar ou revogar uma chave de API
 
 1. Abra [**Configurações › Integrações › Chaves de API**](https://crm.organizastudios.com/configuracoes?secao=integracoes&integracao=chaves) com uma conta administradora.
 2. Em **Chaves ativas**, confira todas as chaves da clínica que ainda podem ser revogadas. Cada item mostra o nome, o início do token, as permissões, quem criou e o último uso.
-3. Para criar uma chave, clique em **Nova chave**, preencha **Nome**, selecione as **Permissões** e clique em **Criar chave**.
+3. Para criar uma chave, clique em **Nova chave**, preencha **Nome**, selecione as **Permissões** e clique em **Criar chave**. **Consultar dados da clínica** libera a leitura de vendas, valores a receber, clientes com pagamentos e planos, filiais, serviços, profissionais, turmas, catálogo de planos, leads e lista de espera. **Cadastrar e alterar leads e vendas** libera criar e alterar leads (contatos, tarefas e conversão), cadastrar clientes, inscrever em turma, vender plano e mexer na lista de espera.
 4. Na tela **Chave criada**, use **Copiar token**, guarde-o no local seguro da integração e clique em **Concluir**. O token completo aparece somente ao criar a chave.
 5. Para encerrar um acesso, clique em **Revogar** ao lado da chave e confirme com **Revogar**. A chave perde o acesso imediatamente e passa a aparecer em **Chaves revogadas**.
 
-**Perguntas:** Onde vejo as chaves de API ativas da clínica? | Como criar uma chave de integração? | Onde copio o token de integração de vendas? | Como revogar uma chave de integração do CRM?
+**Perguntas:** Onde vejo as chaves de API ativas da clínica? | Como criar uma chave de integração? | O que cada permissão da chave de API libera? | Onde copio o token de integração de vendas? | Como revogar uma chave de integração do CRM?
 
 **Fontes:**
-- [Navegação de Integrações](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/IntegrationsContent.tsx)
-- [Chaves ativas, revogação e histórico](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/IntegrationKeysContent.tsx)
-- [Criação, permissões e cópia do token](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/IntegrationKeyCreateModal.tsx)
+- [Navegação de Integrações](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/IntegrationsContent.tsx)
+- [Chaves ativas, revogação e histórico](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/IntegrationKeysContent.tsx)
+- [Criação, permissões e cópia do token](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/IntegrationKeyCreateModal.tsx)
 
 ## CF18 · Vincular e gerenciar avisos do Telegram em chats pessoais e grupos
 
@@ -3449,9 +3449,9 @@ Cada código vale 10 minutos e pode ser usado uma vez. Para verificar o recebime
 **Perguntas:** Como vincular o Telegram ao CRM? | Como configurar avisos do CRM em um grupo do Telegram? | Como mudar ou desativar avisos do Telegram? | Como desvincular um chat ou grupo do Telegram do CRM?
 
 **Fontes:**
-- [Navegação de Integrações](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/IntegrationsContent.tsx)
-- [Vínculo, assuntos e desvinculação na tela de Integrações](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/TelegramIntegrationContent.tsx)
-- [Expiração dos códigos e assuntos disponíveis](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/packages/contracts/src/integrations/telegram.ts)
+- [Navegação de Integrações](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/IntegrationsContent.tsx)
+- [Vínculo, assuntos e desvinculação na tela de Integrações](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/TelegramIntegrationContent.tsx)
+- [Expiração dos códigos e assuntos disponíveis](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/packages/contracts/src/integrations/telegram.ts)
 
 ## CF19 · Criar ou editar uma etiqueta manual
 
@@ -3465,8 +3465,8 @@ Confira o nome e a cor na lista de etiquetas manuais.
 **Perguntas:** Como criar uma etiqueta manual? | Onde mudo o nome ou a cor de uma etiqueta?
 
 **Fontes:**
-- [Criação e ações da lista](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/PatientTagsContent.tsx)
-- [Campos de edição da etiqueta](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/PatientTagEditModal.tsx)
+- [Criação e ações da lista](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/PatientTagsContent.tsx)
+- [Campos de edição da etiqueta](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/PatientTagEditModal.tsx)
 
 ## CF20 · Excluir uma etiqueta manual ou editar uma automática
 
@@ -3480,8 +3480,8 @@ Confira a remoção na lista manual e o nome ou a cor na lista automática. A et
 **Perguntas:** Como excluir uma etiqueta de cliente? | Como mudar a cor ou o nome de uma etiqueta automática?
 
 **Fontes:**
-- [Exclusão da etiqueta manual](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/PatientTagsContent.tsx)
-- [Edição da apresentação automática](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/AutomaticTagEditModal.tsx)
+- [Exclusão da etiqueta manual](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/PatientTagsContent.tsx)
+- [Edição da apresentação automática](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/AutomaticTagEditModal.tsx)
 
 ## CF21 · Gerenciar catálogos comerciais da clínica
 
@@ -3495,8 +3495,8 @@ Confira o item no quadro. Uma origem ativa pode ser selecionada em **Novo lead**
 **Perguntas:** Onde cadastro uma origem comercial? | Como gerenciar formas de contato ou motivos de não efetivação?
 
 **Fontes:**
-- [Quadros dos cadastros comerciais](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/ClinicCatalogsContent.tsx)
-- [Ações de cada catálogo](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/CatalogSection.tsx)
+- [Quadros dos cadastros comerciais](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/ClinicCatalogsContent.tsx)
+- [Ações de cada catálogo](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/CatalogSection.tsx)
 
 ## CF22 · Cadastrar um serviço e definir os recursos
 
@@ -3511,7 +3511,7 @@ Confira o serviço na lista. O formulário explica que, com a lista de recursos 
 **Perguntas:** Onde cadastro um serviço? | Como limitar as salas de um serviço? | Como indicar quais profissionais atendem um serviço?
 
 **Fontes:**
-- [Cadastro do serviço e restrições de recursos](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/AdministrativeRegistrySection.tsx)
+- [Cadastro do serviço e restrições de recursos](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/AdministrativeRegistrySection.tsx)
 
 ## CF23 · Cadastrar ou editar uma sala e sua capacidade
 
@@ -3525,7 +3525,7 @@ Confira a sala e sua capacidade na lista.
 **Perguntas:** Como cadastrar uma sala? | Onde mudo a capacidade de uma sala? | Como editar uma sala de atendimento?
 
 **Fontes:**
-- [Cadastro e capacidade da sala](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/settings/AdministrativeRegistrySection.tsx)
+- [Cadastro e capacidade da sala](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/settings/AdministrativeRegistrySection.tsx)
 
 ## MP01 · Atualizar seu nome ou sua foto de perfil
 
@@ -3539,7 +3539,7 @@ Confira o nome e a foto em **Meu perfil**. Eles também identificam seu usuário
 **Perguntas:** Como mudar minha foto de perfil? | Como atualizar meu nome no CRM? | Onde salvo os dados do meu perfil?
 
 **Fontes:**
-- [Campos de perfil, tamanho da foto e salvamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/profile/ProfilePage.tsx)
+- [Campos de perfil, tamanho da foto e salvamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/profile/ProfilePage.tsx)
 
 ## MP02 · Alterar a própria senha
 
@@ -3554,7 +3554,7 @@ Aparece o aviso de senha alterada. As sessões em outros aparelhos são encerrad
 **Perguntas:** Como alterar minha senha? | Como trocar a senha do meu perfil? | Onde mudo minha senha de acesso?
 
 **Fontes:**
-- [Campos e confirmação da alteração](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/profile/ProfilePage.tsx)
+- [Campos e confirmação da alteração](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/profile/ProfilePage.tsx)
 
 ## MP03 · Alterar o nome e a cor que aparecem na sua Agenda
 
@@ -3569,7 +3569,7 @@ Confira se o nome e a cor ficaram salvos. A seção **Agenda** aparece quando se
 **Perguntas:** Como alterar meu nome na agenda? | Como trocar minha cor na agenda? | Onde mudo o nome que aparece nos atendimentos?
 
 **Fontes:**
-- [Dados da própria agenda e salvamento](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/profile/ProfilePage.tsx)
+- [Dados da própria agenda e salvamento](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/profile/ProfilePage.tsx)
 
 ## LX01 · Enviar um cadastro de cliente à Lixeira
 
@@ -3582,8 +3582,8 @@ O cadastro sai da lista de clientes. Na tela **Clientes**, clique em **Abrir lix
 **Perguntas:** Como enviar um cliente para a lixeira? | Onde excluo um cadastro sem apagar de vez? | Como tirar um cadastro da lista e mandar para a lixeira?
 
 **Fontes:**
-- [Ação de excluir na ficha](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/patients/PatientDetailPage.tsx)
-- [Confirmação de envio para a lixeira](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/trash/SendToTrashModal.tsx)
+- [Ação de excluir na ficha](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/patients/PatientDetailPage.tsx)
+- [Confirmação de envio para a lixeira](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/trash/SendToTrashModal.tsx)
 
 ## LX02 · Consultar a Lixeira e restaurar um cadastro de cliente
 
@@ -3597,7 +3597,7 @@ O cadastro sai da Lixeira e volta à lista de **Clientes**. Use a busca para loc
 **Perguntas:** Como restaurar um cliente da lixeira? | Onde vejo os clientes excluídos? | Como desfazer o envio de um cliente para a lixeira?
 
 **Fontes:**
-- [Lista de excluídos e ação Restaurar](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/trash/TrashModal.tsx)
+- [Lista de excluídos e ação Restaurar](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/trash/TrashModal.tsx)
 
 ## LX03 · Conferir os efeitos e excluir um cadastro definitivamente
 
@@ -3612,5 +3612,5 @@ O cadastro sai da Lixeira. Essa exclusão é permanente. Se quiser manter a poss
 **Perguntas:** Como excluir definitivamente um cliente? | O que vai ser apagado junto na lixeira? | Por que preciso digitar EXCLUIR para apagar um cadastro?
 
 **Fontes:**
-- [Ação por item na Lixeira](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/trash/TrashModal.tsx)
-- [Resumo dos efeitos e confirmação](https://github.com/Bren0-lz/crm-studios/blob/f5c9aee340cb1ec887fdf34b1f5afe53d6ca69c7/apps/web/src/features/trash/PurgeConfirmModal.tsx)
+- [Ação por item na Lixeira](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/trash/TrashModal.tsx)
+- [Resumo dos efeitos e confirmação](https://github.com/Bren0-lz/crm-studios/blob/d0f2b401f7166b33b363d2f7501db9515beeffae/apps/web/src/features/trash/PurgeConfirmModal.tsx)

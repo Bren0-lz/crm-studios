@@ -13,7 +13,13 @@ describe("integration keys through real HTTP handlers", () => {
     const createDialog = screen.getByRole("dialog", { name: "Nova chave" });
     const form = within(createDialog);
     change("Nome", "Dashboard de vendas", createDialog);
-    fireEvent.click(form.getByLabelText("Gravar vendas"));
+    expect(
+      form.getByLabelText("Consultar dados da clínica"),
+    ).toHaveAccessibleDescription(/clientes.*lista de espera/);
+    expect(
+      form.getByLabelText("Cadastrar e alterar leads e vendas"),
+    ).toHaveAccessibleDescription(/novos clientes.*venda de plano/);
+    fireEvent.click(form.getByLabelText("Cadastrar e alterar leads e vendas"));
     await save("Nova chave", "Criar chave");
     const result = within(screen.getByRole("dialog", { name: "Chave criada" }));
     const token = result.getByLabelText<HTMLInputElement>("Token");
@@ -24,7 +30,9 @@ describe("integration keys through real HTTP handlers", () => {
       scopes: ["sales:read", "sales:write"],
     });
     expect(
-      within(panel).getByText(/Ler vendas, Gravar vendas/),
+      within(panel).getByText(
+        /Consultar dados da clínica, Cadastrar e alterar leads e vendas/,
+      ),
     ).toBeInTheDocument();
     fireEvent.click(result.getByRole("button", { name: "Concluir" }));
     expect(within(panel).queryByLabelText("Token")).toBeNull();
