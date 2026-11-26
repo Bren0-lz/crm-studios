@@ -5,7 +5,7 @@ import { open } from "../../test-support/workflow-ui";
 
 const secret = "segredo-do-webhook-de-teste-1234";
 
-function fakeTelegram() {
+function fakeTelegram(botUsername?: string) {
   const sent: { chatId: string; text: string }[] = [];
   return {
     sent,
@@ -14,6 +14,11 @@ function fakeTelegram() {
       client: {
         async sendMessage(chatId: string, text: string) {
           sent.push({ chatId, text });
+        },
+        // Sem nome: o `getMe` falha (rede, token) e a tela fica sem o nome do bot.
+        async getMe() {
+          if (!botUsername) throw new Error("Telegram fora do ar");
+          return { username: botUsername };
         },
       },
     },
@@ -35,6 +40,120 @@ function afterCodeExpires() {
 describe("Telegram em Configurações › Integrações", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("mostra o @ do bot com link, o comando do grupo com o nome do bot e copia as mensagens", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    const fake = fakeTelegram("StudiosAryanaBot");
+    const { app } = await setupApi({ telegram: fake.integration });
+    const section = await openIntegrations();
+    fireEvent.click(
+      await within(section).findByRole("button", {
+        name: "Gerar código de vínculo",
+      }),
+    );
+    const message = (await within(section).findByLabelText(
+      "Mensagem para o bot",
+    )) as HTMLInputElement;
+    expect(message.value).toMatch(/^\/vincular [A-Z2-9]{8}$/);
+    const personal = message.closest(".clinical-form") as HTMLElement;
+    const link = within(personal).getByRole("link", {
+      name: "@StudiosAryanaBot",
+    });
+    expect(link).toHaveAttribute("href", "https://t.me/StudiosAryanaBot");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    fireEvent.click(
+      within(personal).getByRole("button", { name: "Copiar mensagem" }),
+    );
+    await within(personal).findByRole("button", { name: "Copiado" });
+    expect(writeText).toHaveBeenLastCalledWith(message.value);
+
+    fireEvent.click(within(section).getByRole("button", { name: "Vincular grupo" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "Vincular grupo do Telegram",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Gerar código" }));
+    const groupMessage = (await within(section).findByLabelText(
+      "Mensagem para o grupo",
+    )) as HTMLInputElement;
+    expect(groupMessage.value).toMatch(
+      /^\/vincular@StudiosAryanaBot [A-Z2-9]{8}$/,
+    );
+    const group = groupMessage.closest(".clinical-form") as HTMLElement;
+    expect(within(group).queryByText(/Se o Telegram pedir/)).toBeNull();
+    expect(
+      within(group).getByRole("link", { name: "@StudiosAryanaBot" }),
+    ).toHaveAttribute("href", "https://t.me/StudiosAryanaBot");
+    fireEvent.click(
+      within(group).getByRole("button", { name: "Copiar mensagem" }),
+    );
+    await within(group).findByRole("button", { name: "Copiado" });
+    expect(writeText).toHaveBeenLastCalledWith(groupMessage.value);
+
+    // O comando com o nome do bot vincula o grupo.
+    await app.inject({
+      method: "POST",
+      url: `/integrations/telegram/webhook/${secret}`,
+      headers: { "x-telegram-bot-api-secret-token": secret },
+      payload: {
+        update_id: 3,
+        message: {
+          chat: { id: -300, type: "group", title: "Recepção" },
+          text: groupMessage.value,
+        },
+      },
+    });
+    fireEvent.click(
+      within(group).getByRole("button", { name: "Já enviei" }),
+    );
+    await within(section).findByText("Recepção");
+  });
+
+  it("sem o nome do bot, mostra a tela de antes e pede cópia manual sem área de transferência", async () => {
+    vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
+    await setupApi({ telegram: fakeTelegram().integration });
+    const section = await openIntegrations();
+    fireEvent.click(
+      await within(section).findByRole("button", {
+        name: "Gerar código de vínculo",
+      }),
+    );
+    const message = (await within(section).findByLabelText(
+      "Mensagem para o bot",
+    )) as HTMLInputElement;
+    const personal = message.closest(".clinical-form") as HTMLElement;
+    expect(within(personal).queryByRole("link")).toBeNull();
+    expect(
+      within(personal).getByText(/Abra o chat com o bot do estúdio no Telegram/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(personal).getByRole("button", { name: "Copiar mensagem" }),
+    );
+    expect(await within(personal).findByRole("alert")).toHaveTextContent(
+      "Selecione a mensagem e copie manualmente.",
+    );
+
+    fireEvent.click(within(section).getByRole("button", { name: "Vincular grupo" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "Vincular grupo do Telegram",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Gerar código" }));
+    const groupMessage = (await within(section).findByLabelText(
+      "Mensagem para o grupo",
+    )) as HTMLInputElement;
+    expect(groupMessage.value).toMatch(/^\/vincular [A-Z2-9]{8}$/);
+    const group = groupMessage.closest(".clinical-form") as HTMLElement;
+    expect(within(group).getByText(/Se o Telegram pedir/)).toBeInTheDocument();
+    expect(within(group).queryByRole("link")).toBeNull();
+    fireEvent.click(
+      within(group).getByRole("button", { name: "Copiar mensagem" }),
+    );
+    expect(await within(group).findByRole("alert")).toHaveTextContent(
+      "Selecione a mensagem e copie manualmente.",
+    );
   });
 
   it("avisa que a integração está desligada sem o token do bot", async () => {

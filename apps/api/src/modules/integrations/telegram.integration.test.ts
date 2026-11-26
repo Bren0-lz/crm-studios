@@ -119,6 +119,49 @@ describe("Telegram: integração desligada", () => {
   });
 });
 
+describe("Telegram: nome do bot", () => {
+  it("devolve o nome do bot do getMe, guarda depois do primeiro sucesso e tenta de novo após falha", async () => {
+    const fake = fakeTelegram();
+    const calls: string[] = [];
+    let failing = true;
+    fake.integration.client.getMe = async () => {
+      calls.push("getMe");
+      if (failing) throw new Error("Telegram fora do ar");
+      return { username: "StudiosAryanaBot" };
+    };
+    const { app, headers } = await setup(fake.integration);
+    const status = () => app.inject({ url: "/integrations/telegram", headers });
+
+    // Falha: a rota responde normalmente, só sem o nome.
+    const failed = await status();
+    expect(failed.statusCode).toBe(200);
+    expect(failed.json()).toEqual({
+      enabled: true,
+      canLink: true,
+      linkRoles: ["admin"],
+    });
+
+    failing = false;
+    expect((await status()).json()).toEqual({
+      enabled: true,
+      botUsername: "StudiosAryanaBot",
+      canLink: true,
+      linkRoles: ["admin"],
+    });
+    // Depois do primeiro sucesso, não pergunta de novo ao Telegram.
+    failing = true;
+    expect((await status()).json().botUsername).toBe("StudiosAryanaBot");
+    expect(calls).toEqual(["getMe", "getMe"]);
+  });
+
+  it("cliente sem getMe: status sem o nome do bot", async () => {
+    const { app, headers } = await setup(fakeTelegram().integration);
+    const status = await app.inject({ url: "/integrations/telegram", headers });
+    expect(status.statusCode).toBe(200);
+    expect(status.json().botUsername).toBeUndefined();
+  });
+});
+
 describe("Telegram: vínculo", () => {
   it("vincula o chat com o código e responde pela fila", async () => {
     const fake = fakeTelegram();

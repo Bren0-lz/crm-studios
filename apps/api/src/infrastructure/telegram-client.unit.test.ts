@@ -40,6 +40,39 @@ describe("cliente do Telegram (sem rede)", () => {
     expect(error.message).not.toContain(token);
   });
 
+  it("descobre o nome do bot com getMe sem expor o token", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ ok: true, result: { id: 1, is_bot: true, username: "StudiosAryanaBot" } }),
+          { status: 200 },
+        ),
+    );
+    const client = createTelegramClient(token, fetchImpl);
+    await expect(client.getMe?.()).resolves.toEqual({ username: "StudiosAryanaBot" });
+    const [url] = fetchImpl.mock.calls[0] as unknown as [string];
+    expect(url).toBe(`https://api.telegram.org/bot${token}/getMe`);
+
+    const refused = createTelegramClient(
+      token,
+      async () =>
+        new Response(JSON.stringify({ ok: false, description: "Unauthorized" }), {
+          status: 401,
+        }),
+    );
+    const error = await refused.getMe?.().catch((cause) => cause);
+    expect(error.message).toBe("Telegram não informou o bot (401: Unauthorized).");
+    expect(error.message).not.toContain(token);
+
+    const withoutName = createTelegramClient(
+      token,
+      async () => new Response(JSON.stringify({ ok: true, result: {} }), { status: 200 }),
+    );
+    await expect(withoutName.getMe?.()).rejects.toThrow(
+      "Telegram não informou o nome do bot.",
+    );
+  });
+
   it("fica desligado sem TELEGRAM_BOT_TOKEN e deriva o segredo do webhook", () => {
     expect(telegramIntegrationFromEnv({})).toBeNull();
     expect(telegramIntegrationFromEnv({ TELEGRAM_BOT_TOKEN: "  " })).toBeNull();

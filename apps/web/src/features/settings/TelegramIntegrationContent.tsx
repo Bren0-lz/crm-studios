@@ -1,6 +1,7 @@
 import {
   normalizeTelegramTopics,
   TELEGRAM_LINK_CODE_TTL_MINUTES,
+  TELEGRAM_LINK_COMMAND,
   telegramTopicLabels,
   telegramTopics,
   type TelegramGroupLink,
@@ -57,6 +58,73 @@ function LinkCheckWarning({
   );
 }
 
+/** No grupo, o comando com o nome do bot: `/vincular@nome_do_bot CÓDIGO` (INT3). */
+function groupCommand(code: TelegramLinkCode, botUsername?: string) {
+  return botUsername && code.command.startsWith(`${TELEGRAM_LINK_COMMAND} `)
+    ? `${TELEGRAM_LINK_COMMAND}@${botUsername}${code.command.slice(TELEGRAM_LINK_COMMAND.length)}`
+    : code.command;
+}
+
+/** Link do bot no Telegram, em nova aba (INT3). */
+function BotLink({ username }: { username: string }) {
+  return (
+    <a
+      href={`https://t.me/${username}`}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      @{username}
+    </a>
+  );
+}
+
+/**
+ * Mensagem pronta para o Telegram com botão de copiar (INT3), como o token das chaves de API:
+ * sem área de transferência, pede para selecionar e copiar à mão.
+ */
+function CopyMessageField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState("");
+
+  async function copy() {
+    setCopyError("");
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+      setCopyError("Selecione a mensagem e copie manualmente.");
+    }
+  }
+
+  return (
+    <>
+      <label>
+        {label}
+        <input
+          readOnly
+          value={value}
+          onFocus={(event) => event.target.select()}
+        />
+      </label>
+      {copyError && (
+        <div className="form-error" role="alert">
+          {copyError}
+        </div>
+      )}
+      <div className="modal-actions">
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => void copy()}
+        >
+          {copied ? "Copiado" : "Copiar mensagem"}
+        </button>
+      </div>
+    </>
+  );
+}
+
 /** Caixas dos assuntos dos avisos (TG7). */
 function TopicChecks({
   legend,
@@ -99,7 +167,7 @@ function TopicChecks({
  * Grupos do Telegram (TG7): o admin gera um código com os assuntos do grupo, envia no grupo e
  * o grupo passa a receber só esses avisos.
  */
-function TelegramGroupsContent() {
+function TelegramGroupsContent({ botUsername }: { botUsername?: string }) {
   const [groups, setGroups] = useState<TelegramGroupLink[] | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -203,21 +271,27 @@ function TelegramGroupsContent() {
       ) : code ? (
         <div className="clinical-form" role="status">
           <p className="muted-copy">
-            Adicione o bot do estúdio ao grupo e envie lá a mensagem abaixo. Se
-            o Telegram pedir, acrescente o nome do bot ao comando
-            (/vincular@nome_do_bot). O código vale{" "}
-            {TELEGRAM_LINK_CODE_TTL_MINUTES} minutos (até{" "}
+            {botUsername ? (
+              <>
+                Adicione o bot do estúdio (<BotLink username={botUsername} />)
+                ao grupo e envie lá a mensagem abaixo.
+              </>
+            ) : (
+              <>
+                Adicione o bot do estúdio ao grupo e envie lá a mensagem abaixo.
+                Se o Telegram pedir, acrescente o nome do bot ao comando
+                (/vincular@nome_do_bot).
+              </>
+            )}{" "}
+            O código vale {TELEGRAM_LINK_CODE_TTL_MINUTES} minutos (até{" "}
             {timeLabel.format(new Date(code.expiresAt))}) e só pode ser usado
             uma vez.
           </p>
-          <label>
-            Mensagem para o grupo
-            <input
-              readOnly
-              value={code.command}
-              onFocus={(event) => event.target.select()}
-            />
-          </label>
+          <CopyMessageField
+            key={code.code}
+            label="Mensagem para o grupo"
+            value={groupCommand(code, botUsername)}
+          />
           {linkCheck && (
             <LinkCheckWarning check={linkCheck} code={code} chat="group" />
           )}
@@ -586,19 +660,24 @@ export function TelegramIntegrationContent() {
           ) : code ? (
             <div className="clinical-form" role="status">
               <p className="muted-copy">
-                Abra o chat com o bot do estúdio no Telegram e envie a mensagem
-                abaixo. O código vale {TELEGRAM_LINK_CODE_TTL_MINUTES} minutos
-                (até {timeLabel.format(new Date(code.expiresAt))}) e só pode ser
+                {status.botUsername ? (
+                  <>
+                    Abra o chat com o bot do estúdio,{" "}
+                    <BotLink username={status.botUsername} />, no Telegram e
+                    envie a mensagem abaixo.
+                  </>
+                ) : (
+                  "Abra o chat com o bot do estúdio no Telegram e envie a mensagem abaixo."
+                )}{" "}
+                O código vale {TELEGRAM_LINK_CODE_TTL_MINUTES} minutos (até{" "}
+                {timeLabel.format(new Date(code.expiresAt))}) e só pode ser
                 usado uma vez.
               </p>
-              <label>
-                Mensagem para o bot
-                <input
-                  readOnly
-                  value={code.command}
-                  onFocus={(event) => event.target.select()}
-                />
-              </label>
+              <CopyMessageField
+                key={code.code}
+                label="Mensagem para o bot"
+                value={code.command}
+              />
               {linkCheck && (
                 <LinkCheckWarning check={linkCheck} code={code} chat="chat" />
               )}
@@ -639,7 +718,9 @@ export function TelegramIntegrationContent() {
               {actionError}
             </div>
           )}
-          <TelegramGroupsContent />
+          <TelegramGroupsContent
+            {...(status.botUsername ? { botUsername: status.botUsername } : {})}
+          />
         </>
       )}
       {unlinking && (

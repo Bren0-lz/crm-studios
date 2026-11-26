@@ -217,12 +217,14 @@ export function registerTelegramRoutes(context: RouteContext) {
     userId: string,
     role: TelegramStatus["linkRoles"][number],
   ): Promise<TelegramStatus> {
-    const [settings, link] = await Promise.all([
+    const [settings, link, botUsername] = await Promise.all([
       repository.getTelegramSettings(clinicId),
       repository.getTelegramLink(clinicId, userId),
+      telegram.botUsername(),
     ]);
     return {
       enabled: telegram.enabled,
+      ...(botUsername ? { botUsername } : {}),
       canLink: settings.linkRoles.includes(role),
       linkRoles: settings.linkRoles,
       ...(link

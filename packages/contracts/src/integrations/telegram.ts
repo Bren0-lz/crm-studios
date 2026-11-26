@@ -104,6 +104,11 @@ export interface TelegramGroupLink {
 export interface TelegramStatus {
   /** `false` sem `TELEGRAM_BOT_TOKEN` no servidor: nada é enviado. */
   enabled: boolean;
+  /**
+   * Nome de usuário do bot, sem o `@` (`getMe` da Bot API). Ausente se a integração está
+   * desligada ou o Telegram não respondeu.
+   */
+  botUsername?: string;
   /** O perfil do usuário está entre os que podem vincular. */
   canLink: boolean;
   linkRoles: UserRole[];

@@ -76,6 +76,36 @@ export function createTelegramService({
   log: FastifyBaseLogger;
 }) {
   const clock = integration?.now ?? (() => new Date());
+  /** Nome do bot depois do primeiro `getMe` bem-sucedido (o nome não muda sem trocar o token). */
+  let knownBotUsername: string | null = null;
+  let pendingBotUsername: Promise<string | null> | null = null;
+
+  /**
+   * Nome de usuário do bot (sem `@`) ou `null`. Falha (rede, token) não lança: só não traz o
+   * nome, e a próxima chamada tenta de novo.
+   */
+  async function botUsername(): Promise<string | null> {
+    if (knownBotUsername) return knownBotUsername;
+    const getMe = integration?.client.getMe?.bind(integration.client);
+    if (!getMe) return null;
+    pendingBotUsername ??= getMe()
+      .then(({ username }) => {
+        knownBotUsername = username;
+        return username;
+      })
+      .catch((error: unknown) => {
+        // A mensagem do `TelegramApiError` não leva o token.
+        log.warn(
+          { err: error instanceof Error ? error.message : String(error) },
+          "telegram getMe failed",
+        );
+        return null;
+      })
+      .finally(() => {
+        pendingBotUsername = null;
+      });
+    return pendingBotUsername;
+  }
 
   async function stillReceivesNotice(
     clinicId: string,
@@ -203,6 +233,7 @@ export function createTelegramService({
       );
     },
     enqueue,
+    botUsername,
     /** Aviso para os chats e grupos da clínica que recebem o assunto (um por chat). */
     async notifyLinkedChats(
       clinicId: string,
