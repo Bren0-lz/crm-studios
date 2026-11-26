@@ -77,6 +77,65 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - **Gate:** gate completo, conferência estrita do manual e fluxo de criação, cópia e revogação em desktop e celular.
 - **Status:** DONE
 
+### Fila INT2–INT6 — correções do teste de Integrações (26/11/2026)
+
+Teste manual em produção (26/11/2026) das Integrações, do Telegram e do MCP. As cinco tarefas
+mexem nos mesmos arquivos (`TelegramIntegrationContent.tsx`, guias CF17/CF18 e
+`apps/api/src/modules/manual/manual-data.json`), então formam **uma pilha de PRs**: cada branch
+nasce do branch da tarefa anterior (campo **Empilhar sobre**), e o dono faz o merge na ordem
+INT2 → INT3 → INT4 → INT5 → INT6, com *merge commit* (não *squash*). Toda tarefa que mudar uma
+fonte citada por guia revisa o guia e regenera o `manual-data.json`
+(`node scripts/prepare-mcp-manual.mjs --write`, depois a conferência sem `--write`).
+
+### INT2 — "Já enviei" avisa quando o vínculo do Telegram ainda não aconteceu
+
+- **Pedido (26/11/2026):** em Configurações › Integrações › Telegram, clicar em **Já enviei** sem ter enviado o código descarta o código e volta para "Não vinculado" sem nenhuma mensagem; quem errou não sabe o que houve e precisa gerar outro código. Vale para o chat pessoal e para **Vincular grupo**.
+- **Escopo:** `apps/web/src/features/settings/TelegramIntegrationContent.tsx`. Ao clicar em **Já enviei**, recarregar o estado; se o chat (ou um grupo novo) foi vinculado, seguir como hoje; se não, **manter o código na tela** (enquanto não vencer) e mostrar um aviso (`form-error`/`error-banner`) dizendo que o CRM ainda não recebeu a mensagem e o que conferir (mensagem enviada no chat certo, ao bot do estúdio, código dentro do prazo). Código vencido: dizer que venceu e oferecer gerar outro. Testes web (`telegram-integration.integration.test.tsx`) para vinculado, não vinculado e vencido, no pessoal e no grupo. Revisar o guia CF18 e regenerar o manual.
+- **Branch:** `dev/youthful-fermat-g5f6uv-int2`
+- **Empilhar sobre:** `dev/youthful-fermat-g5f6uv` (traz este plano)
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** DONE
+
+### INT3 — Nome do bot, link e botão de copiar no vínculo do Telegram
+
+- **Pedido (26/11/2026):** a tela manda "abrir o chat com o bot do estúdio", mas não mostra qual é o bot nem um link para ele, e "Mensagem para o bot"/"Mensagem para o grupo" não têm botão de copiar (o guia CF18 manda copiar).
+- **Escopo:** a API descobre o nome de usuário do bot pela Bot API (`getMe`, guardado em memória; falha não derruba a tela) e o devolve em `GET /integrations/telegram` (contrato em `packages/contracts/src/integrations/telegram.ts`). A tela mostra `@nome_do_bot` com link `https://t.me/<nome>` (pessoal) e, no grupo, o comando já no formato `/vincular@nome_do_bot CÓDIGO` quando o nome for conhecido. Botão **Copiar mensagem** nos dois casos, com o mesmo recurso de cópia das chaves de API (sem área de transferência: "selecione e copie"). Sem nome do bot: a tela continua como hoje. Testes de API (memória, `getMe` falso) e web. Revisar CF18 e regenerar o manual.
+- **Branch:** `dev/youthful-fermat-g5f6uv-int3`
+- **Empilhar sobre:** INT2
+- **Dependências:** INT2
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** TODO
+
+### INT4 — Nomes das permissões das chaves de API dizem o que liberam
+
+- **Pedido (26/11/2026):** as chaves só oferecem "Ler vendas" e "Gravar vendas", mas "Ler vendas" também libera clientes, filiais, serviços, profissionais, turmas, leads e lista de espera da API externa (`apps/api/src/modules/external/endpoints.ts`).
+- **Escopo:** sem mudar os escopos (`sales:read`, `sales:write`), trocar os rótulos em `integrationScopeLabels` (`packages/contracts/src/integrations/model.ts`) por nomes que digam o alcance real (ex.: "Consultar dados da clínica" e "Cadastrar e alterar leads e vendas", conforme o que `endpoints.ts` realmente libera em cada escopo) e mostrar no modal **Nova chave** uma descrição curta de cada permissão. Atualizar testes que usam os rótulos antigos e o guia CF17; regenerar o manual.
+- **Branch:** `dev/youthful-fermat-g5f6uv-int4`
+- **Empilhar sobre:** INT3
+- **Dependências:** INT3
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** TODO
+
+### INT5 — Aba "Manual MCP" em Integrações e guia de conexão
+
+- **Pedido (26/11/2026):** o conector MCP do manual não aparece em Integrações e nenhum guia explica como conectá-lo (busca "conectar o claude ao manual mcp" volta vazia). Decisão do dono: **aba informativa + guia**; o token continua só na configuração da hospedagem (`MCP_ACCESS_TOKEN_SHA256`), sem gerenciar token pela tela e sem migração.
+- **Escopo:** rota autenticada só para admin que diz se o MCP está ligado e qual o endereço (`<MCP_PUBLIC_ORIGIN>/api/mcp`), sem expor hash nem token (rota nova em `route-access.ts`, junto das de integrações). Terceira subpágina **Manual MCP** em `IntegrationsContent.tsx` (`?integracao=mcp`): estado (ligado/desligado), endereço com botão de copiar, o que o conector faz (só consulta os guias, não lê dados da clínica) e os passos para adicioná-lo como conector personalizado no Claude com o token entregue por quem administra a hospedagem. Estados de carregando/erro. Guia novo na área CF (ex.: CF19 "Conectar o Claude ao manual do CRM") que a busca encontre por "conectar claude mcp"/"manual no claude"; regenerar o manual. Testes de API e web.
+- **Branch:** `dev/youthful-fermat-g5f6uv-int5`
+- **Empilhar sobre:** INT4
+- **Dependências:** INT4
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** TODO
+
+### INT6 — Recibo público mostra o horário no fuso da clínica
+
+- **Pedido (26/11/2026):** a página pública de assinatura do recibo mostra a data/hora do pagamento no fuso do aparelho de quem abre (num navegador em UTC apareceu 11:52 para um pagamento às 08:52 de Brasília).
+- **Escopo:** `apps/web/src/features/finance/ReceiptContent.tsx` (e o "pago em" de `PublicReceiptSignaturePage.tsx`) formatam com o fuso da clínica; se a resposta pública do recibo não trouxer o fuso, acrescentá-lo ao contrato e às duas implementações do repositório. Teste web com o relógio/fuso do navegador diferente do da clínica. Revisar guias que citam esses arquivos e regenerar o manual se preciso.
+- **Branch:** `dev/youthful-fermat-g5f6uv-int6`
+- **Empilhar sobre:** INT5
+- **Dependências:** INT5
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** TODO
+
 ### V1 — Vales para colaboradores
 
 - **Pedido (02/11/2026):** vale com valor configurável, colaborador que recebe e mês em que é

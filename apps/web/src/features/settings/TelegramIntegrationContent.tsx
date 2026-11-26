@@ -30,6 +30,33 @@ function topicList(topics: readonly TelegramTopic[]) {
 const sameTopics = (a: readonly TelegramTopic[], b: readonly TelegramTopic[]) =>
   a.join() === b.join();
 
+/** Resultado de "Já enviei" quando o vínculo ainda não aconteceu (INT2). */
+type LinkCheck = "pending" | "expired" | null;
+
+const isExpired = (code: TelegramLinkCode) =>
+  new Date(code.expiresAt).getTime() <= Date.now();
+
+/** Aviso de "Já enviei" sem vínculo: o que conferir, ou que o código venceu. */
+function LinkCheckWarning({
+  check,
+  code,
+  chat,
+}: {
+  check: Exclude<LinkCheck, null>;
+  code: TelegramLinkCode;
+  chat: "chat" | "group";
+}) {
+  return (
+    <div className="form-error" role="alert">
+      {check === "expired"
+        ? `Este código venceu às ${timeLabel.format(new Date(code.expiresAt))} e não vale mais. Gere outro código e envie a nova mensagem.`
+        : chat === "chat"
+          ? "O CRM ainda não recebeu a mensagem com este código. Confira se você enviou a mensagem acima, sem alterar, no chat privado com o bot do estúdio e dentro do prazo do código. Depois clique em Já enviei de novo."
+          : "O CRM ainda não recebeu a mensagem com este código. Confira se o bot do estúdio está no grupo e se a mensagem acima foi enviada nesse grupo, sem alterar, dentro do prazo do código. Depois clique em Já enviei de novo."}
+    </div>
+  );
+}
+
 /** Caixas dos assuntos dos avisos (TG7). */
 function TopicChecks({
   legend,
@@ -78,6 +105,10 @@ function TelegramGroupsContent() {
   const [attempt, setAttempt] = useState(0);
   const [creating, setCreating] = useState(false);
   const [code, setCode] = useState<TelegramLinkCode | null>(null);
+  /** Assuntos do código atual, para gerar outro igual quando ele vencer. */
+  const [codeTopics, setCodeTopics] = useState<TelegramTopic[]>([]);
+  const [linkCheck, setLinkCheck] = useState<LinkCheck>(null);
+  const [checking, setChecking] = useState(false);
   const [editing, setEditing] = useState<TelegramGroupLink | null>(null);
   const [removing, setRemoving] = useState<TelegramGroupLink | null>(null);
   const [draft, setDraft] = useState<TelegramTopic[]>([]);
@@ -98,6 +129,29 @@ function TelegramGroupsContent() {
     setGroups(null);
     setError("");
     setAttempt((value) => value + 1);
+  }
+
+  /** "Já enviei": recarrega os grupos e só some com o código se um grupo foi vinculado ou revinculado. */
+  async function confirmSent() {
+    if (!code || !groups || checking) return;
+    // Revincular um grupo já vinculado mantém o id e só atualiza a data, o nome e os assuntos.
+    const linkKey = (group: TelegramGroupLink) =>
+      `${group.linkedAt}|${group.title ?? ""}|${group.topics.join()}`;
+    const before = new Map(groups.map((group) => [group.id, linkKey(group)]));
+    setChecking(true);
+    setLinkCheck(null);
+    setNotice("");
+    try {
+      const data = await api.telegramGroups();
+      setGroups(data);
+      if (data.some((group) => before.get(group.id) !== linkKey(group)))
+        setCode(null);
+      else setLinkCheck(isExpired(code) ? "expired" : "pending");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setChecking(false);
+    }
   }
 
   const missing = draft.length ? [] : ["pelo menos um tipo de aviso"];
@@ -130,7 +184,23 @@ function TelegramGroupsContent() {
           {notice}
         </div>
       )}
-      {code && (
+      {code && linkCheck === "expired" ? (
+        <div className="clinical-form">
+          <LinkCheckWarning check="expired" code={code} chat="group" />
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                setDraft(codeTopics);
+                setCreating(true);
+              }}
+            >
+              Gerar outro código
+            </button>
+          </div>
+        </div>
+      ) : code ? (
         <div className="clinical-form" role="status">
           <p className="muted-copy">
             Adicione o bot do estúdio ao grupo e envie lá a mensagem abaixo. Se
@@ -148,20 +218,21 @@ function TelegramGroupsContent() {
               onFocus={(event) => event.target.select()}
             />
           </label>
+          {linkCheck && (
+            <LinkCheckWarning check={linkCheck} code={code} chat="group" />
+          )}
           <div className="modal-actions">
             <button
               type="button"
               className="primary-button"
-              onClick={() => {
-                setCode(null);
-                reload();
-              }}
+              disabled={!groups || checking}
+              onClick={() => void confirmSent()}
             >
-              Já enviei
+              {checking ? "Conferindo…" : "Já enviei"}
             </button>
           </div>
         </div>
-      )}
+      ) : null}
       {error ? (
         <>
           <ErrorBanner error={error} />
@@ -230,6 +301,8 @@ function TelegramGroupsContent() {
           dirty={!sameTopics(draft, [...telegramTopics])}
           onConfirm={async () => {
             setCode(await api.createTelegramGroupLinkCode(draft));
+            setCodeTopics(draft);
+            setLinkCheck(null);
             setCreating(false);
           }}
           onClose={() => setCreating(false)}
@@ -302,6 +375,8 @@ export function TelegramIntegrationContent() {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [code, setCode] = useState<TelegramLinkCode | null>(null);
+  const [linkCheck, setLinkCheck] = useState<LinkCheck>(null);
+  const [checking, setChecking] = useState(false);
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
@@ -333,6 +408,7 @@ export function TelegramIntegrationContent() {
     setNotice("");
     try {
       setCode(await api.createTelegramLinkCode());
+      setLinkCheck(null);
     } catch (cause) {
       setActionError((cause as Error).message);
     } finally {
@@ -365,12 +441,25 @@ export function TelegramIntegrationContent() {
     setNotice("Telegram desvinculado. Os avisos não chegam mais neste chat.");
   }
 
-  function refresh() {
-    setStatus(null);
-    setTopicsDraft(null);
-    setCode(null);
+  /** "Já enviei": recarrega o estado e só some com o código se o chat foi vinculado. */
+  async function confirmSent() {
+    if (!code || checking) return;
+    setChecking(true);
+    setLinkCheck(null);
+    setActionError("");
     setNotice("");
-    setAttempt((value) => value + 1);
+    try {
+      const data = await api.telegramStatus();
+      setStatus(data);
+      if (data.link) {
+        setTopicsDraft(null);
+        setCode(null);
+      } else setLinkCheck(isExpired(code) ? "expired" : "pending");
+    } catch (cause) {
+      setActionError((cause as Error).message);
+    } finally {
+      setChecking(false);
+    }
   }
 
   return (
@@ -480,6 +569,20 @@ export function TelegramIntegrationContent() {
               Seu perfil não pode vincular o Telegram. Fale com o admin da
               clínica.
             </p>
+          ) : code && linkCheck === "expired" ? (
+            <div className="clinical-form">
+              <LinkCheckWarning check="expired" code={code} chat="chat" />
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={saving}
+                  onClick={() => void generate()}
+                >
+                  {saving ? "Gerando…" : "Gerar outro código"}
+                </button>
+              </div>
+            </div>
           ) : code ? (
             <div className="clinical-form" role="status">
               <p className="muted-copy">
@@ -496,11 +599,14 @@ export function TelegramIntegrationContent() {
                   onFocus={(event) => event.target.select()}
                 />
               </label>
+              {linkCheck && (
+                <LinkCheckWarning check={linkCheck} code={code} chat="chat" />
+              )}
               <div className="modal-actions">
                 <button
                   type="button"
                   className="secondary-button"
-                  disabled={saving}
+                  disabled={saving || checking}
                   onClick={() => void generate()}
                 >
                   Gerar outro código
@@ -508,9 +614,10 @@ export function TelegramIntegrationContent() {
                 <button
                   type="button"
                   className="primary-button"
-                  onClick={refresh}
+                  disabled={saving || checking}
+                  onClick={() => void confirmSent()}
                 >
-                  Já enviei
+                  {checking ? "Conferindo…" : "Já enviei"}
                 </button>
               </div>
             </div>
