@@ -1,0 +1,3 @@
+# Checkout sempre em LF, também no Windows (core.autocrlf=true): testes que leem CSS/SQL e a
+# conferência do material do MCP no build comparam o texto com "\n".
+* text=auto eol=lf
