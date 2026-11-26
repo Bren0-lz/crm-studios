@@ -2,6 +2,7 @@ import {
   type IntegrationKey,
   type IntegrationKeyCreated,
   type IntegrationScope,
+  integrationScopeDescriptions,
   integrationScopeLabels,
   withQuotedPrefix,
 } from "@crm/contracts";
@@ -125,21 +126,30 @@ export function IntegrationKeyCreateModal({
       <fieldset className="settings-inline-fields span-2">
         <legend>Permissões</legend>
         {scopes.map((scope) => (
-          <label className="checkbox-field" key={scope}>
-            <input
-              type="checkbox"
-              checked={selectedScopes.includes(scope)}
-              onChange={(event) => {
-                const checked = event.target.checked;
-                setSelectedScopes((current) =>
-                  checked
-                    ? [...current, scope]
-                    : current.filter((item) => item !== scope),
-                );
-              }}
-            />
-            {integrationScopeLabels[scope]}
-          </label>
+          <div className="field-with-hint" key={scope}>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                aria-describedby={`integration-scope-${scope}-hint`}
+                checked={selectedScopes.includes(scope)}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setSelectedScopes((current) =>
+                    checked
+                      ? [...current, scope]
+                      : current.filter((item) => item !== scope),
+                  );
+                }}
+              />
+              {integrationScopeLabels[scope]}
+            </label>
+            <span
+              className="field-hint"
+              id={`integration-scope-${scope}-hint`}
+            >
+              {integrationScopeDescriptions[scope]}
+            </span>
+          </div>
         ))}
       </fieldset>
       <p className="muted-copy span-2">
