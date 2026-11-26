@@ -198,8 +198,8 @@ describe("confirmação do que a pessoa quis dizer", () => {
     expect(result.entendimento.termosDesconhecidos).toEqual([]);
   });
   it.each([
-    ["como trocar o aluno de turma", ["GR03", "CF18"]],
     ["como dar desconto", ["CL16", "FI30"]],
+    ["excluí um cliente sem querer", ["LE07", "LX03"]],
   ])(
     "pede para escolher quando guias fortes são de áreas diferentes: %s",
     (query, ids) => {
@@ -214,6 +214,20 @@ describe("confirmação do que a pessoa quis dizer", () => {
       expect(options[0]?.pergunta).toMatch(/^Você quer [a-z].*\?$/);
     },
   );
+  it.each([
+    "como trocar o aluno de turma",
+    "mudar aluno de turma",
+    "trocar a aluna de turma",
+    "passar aluno para outra turma",
+    "transferir cliente para outra turma",
+  ])("troca de turma vai para o guia da troca, sem o Telegram: %s", (query) => {
+    const { guias, confirmacao } = searchGuides(query);
+    expect(guias[0]).toMatchObject({ id: "GR13", aderencia: "alta" });
+    expect(guias.find((guide) => guide.id === "CF18")?.aderencia).not.toBe(
+      "alta",
+    );
+    expect(confirmacao).toEqual({ necessaria: false });
+  });
   it("sugere os guias parciais como opções em vez de supor em silêncio", () => {
     const { confirmacao } = searchGuides("como mandar lembrete pelo whatsapp");
     expect(confirmacao).toMatchObject({

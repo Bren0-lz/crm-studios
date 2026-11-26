@@ -1286,6 +1286,26 @@ A mudança pode ser conferida ao reabrir aquele encontro. O seletor mostra os pr
 **Fontes:**
 - [Edição do profissional do encontro](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/groups/GroupSessionModal.tsx)
 
+
+## GR13 · Trocar um aluno de turma
+
+O CRM não tem uma ação única de troca: cancele a matrícula na turma atual e matricule o aluno na nova turma.
+
+1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma** na turma atual do aluno.
+2. Em **Dados da turma**, localize o aluno em **Participantes** e clique em **Cancelar matrícula** na linha dele. Confira o nome na confirmação e clique em **Cancelar matrícula**.
+3. Volte a **Turmas** e clique em **Matricular cliente**.
+4. Na janela **Nova matrícula**, selecione em **Turma** a nova turma, que precisa ter vaga. Em **Cliente**, digite o nome e selecione o cadastro correto.
+5. Confira ou ajuste **Início da matrícula** e clique em **Matricular**.
+6. Na nova turma, clique em **Abrir turma** e confira se o nome aparece como **Matriculado**.
+
+Se a nova turma mostrar **turma cheia (lista de espera)** ou o botão mudar para **Colocar na lista de espera**, ela está sem vaga: escolha outra turma ou siga o fluxo de espera.
+
+**Perguntas:** Como trocar um aluno de turma? | Como mudar o cliente para outra turma? | Como transferir um aluno para outra turma? | Como passar o aluno de uma turma para outra?
+
+**Fontes:**
+- [Participantes e ação de cancelar matrícula](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Seleção da turma, do cliente e confirmação da matrícula](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/groups/GroupsPage.tsx)
+
 ## LE01 · Consultar a procura e filtrar a lista de espera
 
 1. Abra [**Lista de espera**](https://crm.organizastudios.com/lista-de-espera).
