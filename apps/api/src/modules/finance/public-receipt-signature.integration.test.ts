@@ -148,6 +148,28 @@ describe("link público do recibo", () => {
     expect(events).toHaveLength(1);
   });
 
+  it("leva o fuso da clínica, para a página mostrar o horário dela e não o do aparelho", async () => {
+    const { app, repository, headers, receivable, url } = await paidReceipt();
+    await repository.updateClinicSettings(receiptClinicId, receiptActorId, {
+      name: "Studios Aryana",
+      timezone: "America/Manaus",
+    });
+
+    const opened = await app.inject({ method: "GET", url });
+    expect(opened.json()).toMatchObject({
+      status: "pending",
+      timezone: "America/Manaus",
+      receipt: { timezone: "America/Manaus" },
+    });
+    // O recibo impresso pela equipe também traz o fuso.
+    const internal = await app.inject({
+      method: "GET",
+      url: `/finance/receivables/${receivable.id}/receipt`,
+      headers,
+    });
+    expect(internal.json()).toMatchObject({ timezone: "America/Manaus" });
+  });
+
   it("recibo cancelado pelo estorno aparece cancelado e não aceita assinatura", async () => {
     const { app, repository, headers, patient, receivable, events, url } =
       await paidReceipt();

@@ -150,6 +150,75 @@ describe("link público do recibo", () => {
     ).toBeInTheDocument();
   });
 
+  it("mostra o horário do pagamento e da assinatura no fuso da clínica, não no do aparelho", async () => {
+    // Aparelho em UTC; a clínica fica em São Paulo (UTC-3).
+    const originalTimezone = process.env.TZ;
+    process.env.TZ = "UTC";
+    try {
+      const api = await setupApi();
+      const patient = await api.repository.createPatient(
+        clinicId,
+        patientInputSchema.parse({
+          cpf: nextTestCpf(),
+          fullName: "Breno Pagante",
+          phone: "11999991234",
+          whatsapp: "11999991234",
+          emergencyContactName: "Breno Pagante",
+          emergencyContactPhone: "11999991234",
+          emergencyContactWhatsapp: "11999991234",
+        }),
+      );
+      const receivable = await api.repository.createManualReceivable(
+        clinicId,
+        actorId,
+        {
+          patientId: patient.id,
+          description: "Mensalidade de Pilates",
+          amountInCents: 18_000,
+          dueDate: "2026-11-20",
+        },
+      );
+      // 08:52 em Brasília (11:52 em UTC).
+      await api.repository.settleReceivable(
+        clinicId,
+        actorId,
+        receivable.id,
+        "pix",
+        { paidAt: "2026-11-20T11:52:00.000Z" },
+      );
+      const [receipt] = await api.repository.listReceiptSignatures(
+        clinicId,
+        receivable.id,
+      );
+      // Assinado às 23:30 de Brasília (02:30 do dia seguinte em UTC).
+      vi.useFakeTimers({
+        toFake: ["Date"],
+        now: new Date("2026-11-21T02:30:00.000Z"),
+      });
+      await api.repository.signPublicReceiptSignature(
+        receipt!.token,
+        {
+          signerName: "Breno Pagante",
+          accepted: true,
+          signatureImage: "data:image/png;base64,cG5n",
+        },
+        {},
+      );
+      vi.useRealTimers();
+      localStorage.clear();
+      open(`/assinar-recibo/${receipt!.token}`);
+
+      expect(await screen.findByText("20/11/2026, 08:52")).toBeInTheDocument();
+      expect(screen.queryByText(/11:52/)).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Assinado por Breno Pagante em 20 de nov., 23:30"),
+      ).toBeInTheDocument();
+    } finally {
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    }
+  });
+
   it("recibo cancelado pelo estorno avisa e não oferece a assinatura", async () => {
     const { repository, receivable, receipt } = await paidReceipt();
     await repository.reverseReceivablePayment(clinicId, actorId, receivable.id);

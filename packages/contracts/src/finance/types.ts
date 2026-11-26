@@ -718,6 +718,8 @@ export interface PaymentReceipt {
   installmentNumber?: number;
   installmentCount?: number;
   paidAt: string;
+  /** Fuso da clínica: data e hora do pagamento saem nele, não no do aparelho de quem abre. */
+  timezone: string;
   /** Dados da clínica (Configurações › Dados da clínica). */
   clinicName: string;
   clinicLegalName?: string;

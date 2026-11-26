@@ -13,6 +13,7 @@ import {
   publicSignatureBodyLimit,
   publicSignatureTokenParams,
 } from "../signatures/public-signature-guard.js";
+import { DEFAULT_CLINIC_TIMEZONE } from "./daily-cash.js";
 import { signReceipt } from "./receipt-signatures.js";
 
 const receiptLinkNotFound = {
@@ -54,15 +55,15 @@ export async function publicReceiptView(
   receipt: ReceiptSignature,
 ): Promise<PublicReceiptSignature> {
   const status = publicReceiptSignatureStatus(receipt);
-  if (status === "cancelled") {
-    const clinic = await repository.getClinicSettings(receipt.clinicId);
-    return { status, clinicName: clinic?.name ?? "" };
-  }
+  const clinic = await repository.getClinicSettings(receipt.clinicId);
+  if (status === "cancelled") return { status, clinicName: clinic?.name ?? "" };
   const content = await receiptContent(repository, receipt);
   return {
     status,
     amountInCents: receipt.amountInCents,
     paidAt: receipt.paidAt,
+    // Fuso da clínica: a página mostra data e hora nele, não no do aparelho do cliente.
+    timezone: clinic?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
     ...(content ? { receipt: content } : {}),
     ...(receipt.signedAt ? { signedAt: receipt.signedAt } : {}),
     ...(receipt.signerName ? { signerName: receipt.signerName } : {}),

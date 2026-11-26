@@ -359,7 +359,7 @@ export function receiptMessage(receipt: PaymentReceipt) {
   const discount = receipt.customerDiscountInCents
     ? ` (com desconto de ${currency.format(receipt.customerDiscountInCents / 100)})`
     : "";
-  return `Olá, ${patientFirstName(receipt.patientName)}! Segue o recibo ${receipt.receiptNumber}: recebemos ${currency.format(receipt.amountInCents / 100)}${discount} referente a ${receipt.description}${installment}, em ${new Date(receipt.paidAt).toLocaleDateString("pt-BR")}${method}. Obrigado! ${receipt.clinicName}`;
+  return `Olá, ${patientFirstName(receipt.patientName)}! Segue o recibo ${receipt.receiptNumber}: recebemos ${currency.format(receipt.amountInCents / 100)}${discount} referente a ${receipt.description}${installment}, em ${new Date(receipt.paidAt).toLocaleDateString("pt-BR", { timeZone: receipt.timezone })}${method}. Obrigado! ${receipt.clinicName}`;
 }
 
 /** Endereço público onde o cliente lê e assina o recibo da baixa. */

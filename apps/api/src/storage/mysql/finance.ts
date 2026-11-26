@@ -1227,12 +1227,14 @@ export function createFinanceRepository(
         clinicLegalName: string | null;
         clinicTaxId: string | null;
         clinicAddress: string | null;
+        timezone: string | null;
         patientPhone: string | null;
         discountInCents: number | null;
         interestInCents: number | null;
       }>(
         `SELECT c.name AS "clinicName", c.legal_name AS "clinicLegalName",
                 c.tax_id AS "clinicTaxId", c.address AS "clinicAddress",
+                c.timezone AS "timezone",
                 coalesce(nullif(p.whatsapp, ''), p.phone) AS "patientPhone",
                 fe.discount_in_cents AS "discountInCents",
                 fe.interest_in_cents AS "interestInCents"
@@ -1284,6 +1286,7 @@ export function createFinanceRepository(
           ? { paymentParts: receivable.paymentParts }
           : {}),
         paidAt: receivable.paidAt,
+        timezone: row?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
         clinicName: row?.clinicName ?? "",
         clinicLegalName: row?.clinicLegalName ?? "",
         clinicTaxId: row?.clinicTaxId ?? "",

@@ -1122,6 +1122,7 @@ export function createFinanceRepository(
           ? { paymentParts: receivable.paymentParts }
           : {}),
         paidAt: receivable.paidAt,
+        timezone: clinic.timezone,
         clinicName: clinic.name,
         clinicLegalName: clinic.legalName ?? "",
         clinicTaxId: clinic.taxId ?? "",
