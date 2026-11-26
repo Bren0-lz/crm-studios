@@ -1,5 +1,5 @@
 import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
 import { open } from "../../test-support/workflow-ui";
 
@@ -26,7 +26,17 @@ async function openIntegrations() {
   return within(panel).findByRole("region", { name: "Telegram" });
 }
 
+/** Simula o relógio depois do prazo do código (10 minutos). */
+function afterCodeExpires() {
+  const later = Date.now() + 11 * 60_000;
+  vi.spyOn(Date, "now").mockReturnValue(later);
+}
+
 describe("Telegram em Configurações › Integrações", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("avisa que a integração está desligada sem o token do bot", async () => {
     await setupApi({ telegram: null });
     open("/configuracoes?secao=integracoes");
@@ -200,5 +210,155 @@ describe("Telegram em Configurações › Integrações", () => {
     fireEvent.click(within(remove).getByRole("button", { name: "Desvincular" }));
     await within(section).findByText("Grupo desvinculado.");
     expect(await repository.listTelegramGroupLinks(clinicId)).toEqual([]);
+  });
+
+  it("Já enviei sem vínculo mantém o código do chat pessoal e explica o que conferir", async () => {
+    const fake = fakeTelegram();
+    const { app } = await setupApi({ telegram: fake.integration });
+    const section = await openIntegrations();
+    fireEvent.click(
+      await within(section).findByRole("button", {
+        name: "Gerar código de vínculo",
+      }),
+    );
+    const message = (await within(section).findByLabelText(
+      "Mensagem para o bot",
+    )) as HTMLInputElement;
+    const command = message.value;
+
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    const alert = await within(section).findByRole("alert");
+    expect(alert).toHaveTextContent(
+      /O CRM ainda não recebeu a mensagem com este código/,
+    );
+    expect(alert).toHaveTextContent(/chat privado com o bot do estúdio/);
+    expect(alert).toHaveTextContent(/dentro do prazo do código/);
+    expect(within(section).getByText("Não vinculado")).toBeInTheDocument();
+    expect(
+      (within(section).getByLabelText("Mensagem para o bot") as HTMLInputElement)
+        .value,
+    ).toBe(command);
+
+    // Agora envia de verdade e confirma com o mesmo código.
+    await app.inject({
+      method: "POST",
+      url: `/integrations/telegram/webhook/${secret}`,
+      headers: { "x-telegram-bot-api-secret-token": secret },
+      payload: { update_id: 3, message: { chat: { id: 42 }, text: command } },
+    });
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    await within(section).findByText("Chat vinculado");
+    expect(within(section).queryByRole("alert")).toBeNull();
+    expect(within(section).queryByLabelText("Mensagem para o bot")).toBeNull();
+  });
+
+  it("Já enviei com o código pessoal vencido avisa e oferece gerar outro", async () => {
+    await setupApi({ telegram: fakeTelegram().integration });
+    const section = await openIntegrations();
+    fireEvent.click(
+      await within(section).findByRole("button", {
+        name: "Gerar código de vínculo",
+      }),
+    );
+    const first = (
+      (await within(section).findByLabelText(
+        "Mensagem para o bot",
+      )) as HTMLInputElement
+    ).value;
+    afterCodeExpires();
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    const alert = await within(section).findByRole("alert");
+    expect(alert).toHaveTextContent(/Este código venceu às .* e não vale mais/);
+    expect(within(section).queryByLabelText("Mensagem para o bot")).toBeNull();
+    expect(within(section).queryByRole("button", { name: "Já enviei" })).toBeNull();
+
+    vi.restoreAllMocks();
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Gerar outro código" }),
+    );
+    const next = (await within(section).findByLabelText(
+      "Mensagem para o bot",
+    )) as HTMLInputElement;
+    expect(next.value).toMatch(/^\/vincular [A-Z2-9]{8}$/);
+    expect(next.value).not.toBe(first);
+    expect(within(section).queryByRole("alert")).toBeNull();
+  });
+
+  async function generateGroupCode(section: HTMLElement) {
+    await within(section).findByText("Nenhum grupo vinculado");
+    fireEvent.click(within(section).getByRole("button", { name: "Vincular grupo" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "Vincular grupo do Telegram",
+    });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Agendamentos" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Gerar código" }));
+    return (
+      (await within(section).findByLabelText(
+        "Mensagem para o grupo",
+      )) as HTMLInputElement
+    ).value;
+  }
+
+  it("Já enviei sem grupo novo mantém o código do grupo e explica o que conferir", async () => {
+    const fake = fakeTelegram();
+    const { app } = await setupApi({ telegram: fake.integration });
+    const section = await openIntegrations();
+    const command = await generateGroupCode(section);
+
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    const alert = await within(section).findByRole("alert");
+    expect(alert).toHaveTextContent(
+      /O CRM ainda não recebeu a mensagem com este código/,
+    );
+    expect(alert).toHaveTextContent(/bot do estúdio está no grupo/);
+    expect(alert).toHaveTextContent(/dentro do prazo do código/);
+    expect(within(section).getByText("Nenhum grupo vinculado")).toBeInTheDocument();
+    expect(
+      (within(section).getByLabelText("Mensagem para o grupo") as HTMLInputElement)
+        .value,
+    ).toBe(command);
+
+    await app.inject({
+      method: "POST",
+      url: `/integrations/telegram/webhook/${secret}`,
+      headers: { "x-telegram-bot-api-secret-token": secret },
+      payload: {
+        update_id: 4,
+        message: {
+          chat: { id: -200, type: "supergroup", title: "CRM · Agenda" },
+          text: command,
+        },
+      },
+    });
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    await within(section).findByText("CRM · Agenda");
+    expect(within(section).queryByRole("alert")).toBeNull();
+    expect(within(section).queryByLabelText("Mensagem para o grupo")).toBeNull();
+  });
+
+  it("Já enviei com o código do grupo vencido avisa e oferece gerar outro", async () => {
+    await setupApi({ telegram: fakeTelegram().integration });
+    const section = await openIntegrations();
+    await generateGroupCode(section);
+    afterCodeExpires();
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    const alert = await within(section).findByRole("alert");
+    expect(alert).toHaveTextContent(/Este código venceu às .* e não vale mais/);
+    expect(within(section).queryByLabelText("Mensagem para o grupo")).toBeNull();
+
+    vi.restoreAllMocks();
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Gerar outro código" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Vincular grupo do Telegram",
+    });
+    expect(
+      within(dialog).getByRole("checkbox", { name: "Agendamentos" }),
+    ).not.toBeChecked();
+    expect(within(dialog).getByRole("checkbox", { name: "Recibos" })).toBeChecked();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Gerar código" }));
+    await within(section).findByLabelText("Mensagem para o grupo");
+    expect(within(section).queryByRole("alert")).toBeNull();
   });
 });
