@@ -80,7 +80,7 @@ Os dados do cliente disponíveis na janela dependem das permissões da sua conta
 
 Esse caminho vale quando o botão **Remarcar atendimento** estiver disponível nos detalhes. O caso verificado manteve o mesmo atendimento com o horário atualizado.
 
-**Perguntas:** Como remarcar um atendimento? | Como reagendar uma consulta? | Como trocar o horário de um atendimento? | Como mudar a data de um agendamento? | Como remarcar uma aula experimental já marcada? | Como mudar o horário de uma sessão?
+**Perguntas:** Como remarcar um atendimento? | Como reagendar uma consulta? | Como trocar o horário de um atendimento? | Como mudar a data de um agendamento? | Como remarcar uma aula experimental já marcada? | Como mudar o horário de uma sessão? | A aluna pediu para passar o horário de terça para sexta. Como remarcar?
 
 **Fontes:**
 - [Cartão que abre os detalhes na Agenda](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AgendaCard.tsx)
@@ -97,7 +97,7 @@ Esse caminho vale quando o botão **Remarcar atendimento** estiver disponível n
 
 Se a lista estiver vazia, tente outro dado no mesmo campo. Se houver filtros ativos, abra **Filtros** e confira se a situação ou a etiqueta escolhida pode estar deixando o cadastro de fora.
 
-**Perguntas:** Como localizar um cliente? | Como buscar um cliente cadastrado? | Como encontrar uma aluna sem mexer em nada? | Onde busco um cliente pelo CPF? | Como pesquisar um cliente pelo telefone? | Como localizar uma aluna sem mexer em nada? | Como encontro o cadastro de um aluno?
+**Perguntas:** Como localizar um cliente? | Como buscar um cliente cadastrado? | Como encontrar uma aluna sem mexer em nada? | Onde busco um cliente pelo CPF? | Como pesquisar um cliente pelo telefone? | Como localizar uma aluna sem mexer em nada? | Como encontro o cadastro de um aluno? | Cadastrei uma aluna mas esqueci o sobrenome, onde acho a ficha dela?
 
 **Fontes:**
 - [Busca e filtros de Clientes](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/patients/PatientsPage.tsx)
@@ -261,7 +261,7 @@ O lançamento registra o valor a receber. Quando o dinheiro entrar, use **Dar ba
 
 A parcela volta a ficar em aberto, o recebimento sai do caixa e o botão **Dar baixa** volta a aparecer. A janela informa que a ação não pode ser desfeita. Se **Estornar** estiver ausente, confira se a parcela está paga e se sua conta tem a permissão para estornar recebimentos.
 
-**Perguntas:** Como estornar o recebimento de uma parcela? | Como estornar um pagamento de cliente? | Como desfazer a baixa de uma parcela? | Como cancelar uma baixa no contas a receber? | Como reabrir uma parcela que marquei como paga? | Como estornar parcela paga?
+**Perguntas:** Como estornar o recebimento de uma parcela? | Como estornar um pagamento de cliente? | Como desfazer a baixa de uma parcela? | Como cancelar uma baixa no contas a receber? | Como reabrir uma parcela que marquei como paga? | Como estornar parcela paga? | Marquei a parcela errada como recebida. Como volto atrás? | Recebi na parcela do mês errado. Como voltar atrás sem desfazer outra parcela?
 
 **Fontes:**
 - [Ações da parcela em Contas a receber](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/ReceivablesList.tsx)
@@ -348,7 +348,7 @@ Se **Atualizar** estiver desativado, confira se as duas datas estão preenchidas
 
 A tela de entrada volta a aparecer. **Encerrar acessos** também encerra sua sessão atual. No celular, abra primeiro o menu lateral.
 
-**Perguntas:** Como sair do CRM? | Como desconectar do sistema? | Como sair de todos os dispositivos? | Como encerrar as sessões da minha conta?
+**Perguntas:** Como sair do CRM? | Como desconectar do sistema? | Como sair de todos os dispositivos? | Como encerrar as sessões da minha conta? | Como derrubar uma sessão que deixei aberta em outro aparelho?
 
 **Fontes:**
 - [Menu de usuário e ação Sair](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/app/Shell.tsx)
@@ -361,12 +361,13 @@ A tela de entrada volta a aparecer. **Encerrar acessos** também encerra sua ses
 3. Confira o nome selecionado no cabeçalho após a tela atualizar.
 4. Para consultar o conjunto de filiais disponíveis, escolha **Todas as filiais**.
 
-O seletor aparece quando sua conta tem acesso a pelo menos duas filiais ativas. Confira a filial antes de salvar registros como agendamentos ou lançamentos financeiros.
+O seletor aparece quando sua conta tem acesso a pelo menos duas filiais ativas. Em **Todas as filiais**, os novos registros que usam a filial ativa são gravados na filial padrão da clínica se você tiver acesso a ela, ou na primeira filial ativa a que você tiver acesso. Uma operação sobre um registro existente pode usar a filial desse registro. Para criar um agendamento ou lançamento em uma unidade específica, selecione essa filial pelo nome antes de salvar.
 
-**Perguntas:** Como trocar de filial? | Onde seleciono a filial ativa? | Como voltar para Todas as filiais?
+**Perguntas:** Como trocar de filial? | Onde seleciono a filial ativa? | Como voltar para Todas as filiais? | Em qual filial entra o agendamento se eu salvar com Todas as filiais? | Onde vejo qual unidade está selecionada?
 
 **Fontes:**
 - [Seletor e condições de exibição](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/app/BranchSelector.tsx)
+- [Escolha da filial de gravação no modo consolidado](https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/api/src/infrastructure/route-context.ts)
 - [Atualização da tela na troca de filial](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/app/Shell.tsx)
 
 ## AC05 · Abrir a tela de origem de uma notificação
@@ -377,7 +378,7 @@ O seletor aparece quando sua conta tem acesso a pelo menos duas filiais ativas. 
 
 Deu certo quando abre a tela relacionada ao aviso. Por exemplo, **Tarefas comerciais vencidas** abre **CRM comercial**. Os grupos do cabeçalho também funcionam como atalhos quando estiverem em destaque.
 
-**Perguntas:** Como abrir uma pendência pelo sino? | Onde vejo as notificações do CRM? | Como abrir uma tarefa comercial vencida pelo sino?
+**Perguntas:** Como abrir uma pendência pelo sino? | Onde vejo as notificações do CRM? | Como abrir uma tarefa comercial vencida pelo sino? | Como abrir um aviso pelo sininho?
 
 **Fontes:**
 - [Sino e atalhos de pendências](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/app/Shell.tsx)
@@ -468,7 +469,7 @@ O atalho abre o formulário de agendamento. Para concluir o cadastro, siga o gui
 
 O atalho abre **Contatos sugeridos**. A lista depende dos clientes e das datas que o sistema encontrou.
 
-**Perguntas:** Onde vejo aniversariantes no painel? | Como encontro clientes sem retorno na Visão geral? | Como abrir Contatos sugeridos a partir do painel?
+**Perguntas:** Onde vejo aniversariantes no painel? | Como encontro clientes sem retorno na Visão geral? | Como abrir Contatos sugeridos a partir do painel? | O painel mostra aniversários e clientes que sumiram?
 
 **Fontes:**
 - [Bloco de clientes sem retorno](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/dashboard/DashboardPage.tsx)
@@ -494,12 +495,12 @@ Quando o painel mostra **0 pendentes hoje**, a fila do dia está vazia.
 1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).
 2. Selecione **Dia**, **Semana** ou **Mês**. Em **Dia**, use **Grade** ou **Lista**.
 3. Use as setas ao lado da data para avançar ou voltar. Clique em **Hoje** para retornar à data atual.
-4. Use **Profissional** para escolher quem aparece na agenda.
+4. Use **Profissional** para escolher quem aparece na agenda. Se você só vê a própria agenda e o filtro está ausente, peça ao administrador para conferir **Ver agenda de todos os profissionais** nas permissões do usuário (guia CF04).
 5. Marque **Mostrar cancelados** se quiser ver esses atendimentos. Use **Mostrar notas** para controlar a exibição das notas.
 
 Confira o período exibido no alto da agenda. No celular, abra **Filtros** para ver as opções recolhidas.
 
-**Perguntas:** Como navegar na agenda? | Como filtrar a agenda por profissional? | Como mostrar as notas na agenda? | Como trocar a agenda para semana ou mês?
+**Perguntas:** Como navegar na agenda? | Como filtrar a agenda por profissional? | Como mostrar as notas na agenda? | Como trocar a agenda para semana ou mês? | Onde vejo a agenda das colegas? | Por que só aparece a minha agenda?
 
 **Fontes:**
 - [Navegação, visualizações e filtros da Agenda](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AgendaPage.tsx)
@@ -547,7 +548,7 @@ O formulário da Agenda permanece aberto com o novo cliente selecionado.
 
 Abra os detalhes para conferir o que ficou salvo. Para mudar data, horário ou profissional, use **Remarcar atendimento**. Se o aviso disser que só atendimentos agendados ou confirmados podem ser editados, recarregue a Agenda e confira a situação atual.
 
-**Perguntas:** Como editar um atendimento? | Como alterar a observação de um atendimento? | Como mudar o serviço ou a sala de um atendimento?
+**Perguntas:** Como editar um atendimento? | Como alterar a observação de um atendimento? | Como mudar o serviço ou a sala de um atendimento? | Por que não consigo editar um cartão agendado?
 
 **Fontes:**
 - [Ação de edição em Detalhes do atendimento](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
@@ -577,7 +578,7 @@ O cartão passa a mostrar **Confirmado**. Se precisar conferir, abra os detalhes
 
 O atendimento passa para **Não compareceu**. A tela informa que a falta não consome sessão do plano. Se o botão estiver desativado, confira o horário de liberação indicado nos detalhes.
 
-**Perguntas:** Como registrar falta na agenda? | Como marcar que o cliente não compareceu? | Onde marco falta em um atendimento?
+**Perguntas:** Como registrar falta na agenda? | Como marcar que o cliente não compareceu? | Onde marco falta em um atendimento? | Como anoto no horário que a aluna deu bolo?
 
 **Fontes:**
 - [Ação e confirmação da ausência](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
@@ -590,7 +591,7 @@ O atendimento passa para **Não compareceu**. A tela informa que a falta não co
 
 O cartão passa a indicar **Finalizado**. Se a ação estiver desativada, confira a informação de horário nos detalhes.
 
-**Perguntas:** Como finalizar atendimento individual? | Onde marco um atendimento como realizado?
+**Perguntas:** Como finalizar atendimento individual? | Onde marco um atendimento como realizado? | Terminei a sessão. Onde encerro o atendimento?
 
 **Fontes:**
 - [Detalhes e ação de finalizar](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
@@ -621,7 +622,7 @@ O atendimento original continua com a falta registrada. Cada falta pode ter uma 
 
 Confira o aviso **Bloqueio criado.** Para localizar o bloqueio pelo motivo, vá ao dia correspondente e escolha **Lista**.
 
-**Perguntas:** Como bloquear um horário na agenda? | Como bloquear a agenda de um profissional? | Como reservar um período indisponível em uma sala?
+**Perguntas:** Como bloquear um horário na agenda? | Como bloquear a agenda de um profissional? | Como reservar um período indisponível em uma sala? | Como bloquear uma sala em obra para impedir novas marcações?
 
 **Fontes:**
 - [Criação do bloqueio e aviso](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AgendaPage.tsx)
@@ -715,7 +716,7 @@ Confira se a nota saiu do dia. Se excluiu as próximas ocorrências, abra uma da
 
 O histórico permite identificar a mudança sem editar o atendimento.
 
-**Perguntas:** Onde vejo o histórico de remarcações? | Como descubro o horário antigo de um atendimento remarcado?
+**Perguntas:** Onde vejo o histórico de remarcações? | Como descubro o horário antigo de um atendimento remarcado? | Como consultar as datas anteriores de uma sessão remarcada?
 
 **Fontes:**
 - [Ações do cartão na Agenda](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AgendaCard.tsx)
@@ -807,9 +808,9 @@ O CRM fecha a pesquisa depois de registrar a avaliação para aquele cliente e a
 4. Na janela do dia, leia o aviso **Feriado** e a lista de compromissos daquele dia, quando houver.
 5. Clique em **Abrir dia na agenda** para continuar na programação diária.
 
-O nome do feriado aparece no calendário e no detalhe do dia. Se você tem acesso ao módulo **Eventos**, os eventos comerciais também aparecem na Agenda. Clique no nome de um evento na lista de compromissos para abrir os detalhes.
+O nome do feriado aparece no calendário e no detalhe do dia. Para ver eventos comerciais, abra a **Agenda** pelo menu geral com acesso ao módulo **Eventos**. A Agenda aberta no contexto de um cliente oculta esses eventos. Clique no nome de um evento na lista de compromissos para abrir os detalhes.
 
-**Perguntas:** Onde vejo se um dia é feriado na Agenda? | Como conferir os compromissos de um dia no mês? | Como abrir os eventos de um dia na Agenda?
+**Perguntas:** Onde vejo se um dia é feriado na Agenda? | Como conferir os compromissos de um dia no mês? | Como abrir os eventos de um dia na Agenda? | Por que o evento comercial não aparece quando abro a agenda pela ficha do cliente?
 
 **Fontes:**
 - [Calendário mensal e abertura do dia](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AgendaPage.tsx)
@@ -824,7 +825,7 @@ O nome do feriado aparece no calendário e no detalhe do dia. Se você tem acess
 
 Os campos aparecem disponíveis para leitura. Feche a janela em **Fechar** quando terminar.
 
-**Perguntas:** Como consultar cliente sem editar? | Como abrir o cadastro com acesso somente leitura? | Por que aparece Ver no lugar de Editar cliente?
+**Perguntas:** Como consultar cliente sem editar? | Como abrir o cadastro com acesso somente leitura? | Por que aparece Ver no lugar de Editar cliente? | Onde vejo uma ficha quando o lápis de edição não aparece?
 
 **Fontes:**
 - [Ação de consulta na lista de clientes](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/patients/PatientsPage.tsx)
@@ -840,7 +841,7 @@ Os campos aparecem disponíveis para leitura. Feche a janela em **Fechar** quand
 
 Abra a ficha do novo cliente e confira a aula nos próximos atendimentos da aba **Agenda**.
 
-**Perguntas:** Como cadastrar cliente e agendar uma experimental junto? | Onde marco a aula experimental no cadastro de cliente?
+**Perguntas:** Como cadastrar cliente e agendar uma experimental junto? | Onde marco a aula experimental no cadastro de cliente? | A aluna quer experimentar antes de fechar o plano. Posso cadastrar e marcar no mesmo lugar?
 
 **Fontes:**
 - [Cadastro e ações de agendamento guiado](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/patients/PatientModal.tsx)
@@ -899,7 +900,7 @@ Confira o cadastro em **Clientes** e a venda correspondente em **Vendas realizad
 
 Confira o resumo da importação e procure os novos cadastros em **Clientes**. Use os títulos das colunas na primeira linha da planilha.
 
-**Perguntas:** Como importar clientes? | Como enviar uma planilha de clientes? | Onde subo o CSV de clientes?
+**Perguntas:** Como importar clientes? | Como enviar uma planilha de clientes? | Onde subo o CSV de clientes? | Como trago os cadastros de clientes de um arquivo Excel?
 
 **Fontes:**
 - [Atalho Mais e ação Importar](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/patients/PatientsPage.tsx)
@@ -930,7 +931,7 @@ Abra o arquivo CSV que o navegador baixou. Confira se foram incluídas as coluna
 
 A prévia considera clientes ativos da rede com cadastros antigos o suficiente para o período escolhido. Atendimento individual no período ou agendado, frequência de turma no período, plano ativo e vigente ou matrícula ativa com aula futura impedem a seleção. Se um cliente perder a elegibilidade entre a prévia e a confirmação, o CRM conta esse cadastro como ignorado.
 
-**Perguntas:** Como inativar clientes em lote? | Onde desativo vários clientes sem atividade? | Por que um cliente foi ignorado na inativação em lote?
+**Perguntas:** Como inativar clientes em lote? | Onde desativo vários clientes sem atividade? | Por que um cliente foi ignorado na inativação em lote? | Como inativar clientes que sumiram preservando quem tem aula marcada?
 
 **Fontes:**
 - [Ação, resultado e filtro em Clientes](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/patients/PatientsPage.tsx)
@@ -974,7 +975,7 @@ Depois de salvar, abra a venda para conferir o valor final e o desconto registra
 
 A aba reúne o histórico daquele cadastro. Sua exibição depende da permissão **Ver histórico do cliente**.
 
-**Perguntas:** Como consultar o histórico de um cliente? | Onde vejo as alterações na ficha do cliente? | Por que a aba Histórico não aparece na ficha?
+**Perguntas:** Como consultar o histórico de um cliente? | Onde vejo as alterações na ficha do cliente? | Por que a aba Histórico não aparece na ficha? | Onde olho o que mudou no cadastro da aluna?
 
 **Fontes:**
 - [Entrada da ficha na lista](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/patients/PatientsPage.tsx)
@@ -1069,7 +1070,7 @@ O cartão passa para a coluna da etapa escolhida. Abra os detalhes para conferir
 
 O lead sai das oportunidades abertas. Para encontrá-lo, confira se **Ocultar perdidos** está desativado e procure na coluna **Perdidos**.
 
-**Perguntas:** Como marcar um lead como perdido? | Onde registro o motivo de perda de um interessado? | Como mover um lead para Perdidos?
+**Perguntas:** Como marcar um lead como perdido? | Onde registro o motivo de perda de um interessado? | Como mover um lead para Perdidos? | Como registro no funil que a venda não rolou?
 
 **Fontes:**
 - [Seleção da etapa e exibição de perdidos](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/commercial/CommercialPage.tsx)
@@ -1133,7 +1134,7 @@ Confira a nova situação na mesma lista.
 
 O registro aparece no histórico do lead, inclusive quando você informa que a tentativa ficou sem resposta.
 
-**Perguntas:** Como registrar contato com um lead? | Como anotar uma ligação para um lead? | Onde registro uma tentativa de contato comercial?
+**Perguntas:** Como registrar contato com um lead? | Como anotar uma ligação para um lead? | Onde registro uma tentativa de contato comercial? | Como anoto uma ligação no histórico do funil?
 
 **Fontes:**
 - [Campos e histórico de contato](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/commercial/LeadActivityModal.tsx)
@@ -1148,7 +1149,7 @@ O registro aparece no histórico do lead, inclusive quando você informa que a t
 
 A aula aparece na Agenda vinculada ao lead. O cadastro de cliente pode ser feito depois, na conversão.
 
-**Perguntas:** Como marcar uma aula experimental para um lead? | Onde agendo atendimento para um interessado do funil?
+**Perguntas:** Como marcar uma aula experimental para um lead? | Onde agendo atendimento para um interessado do funil? | Como marcar a experimental para uma pessoa que está no funil?
 
 **Fontes:**
 - [Ação no funil](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/commercial/CommercialPage.tsx)
@@ -1289,18 +1290,13 @@ A mudança pode ser conferida ao reabrir aquele encontro. O seletor mostra os pr
 
 ## GR13 · Trocar um aluno de turma
 
-O CRM não tem uma ação única de troca: cancele a matrícula na turma atual e matricule o aluno na nova turma.
+1. Abra [**Turmas**](https://crm.organizastudios.com/turmas), confira o horário da turma de destino e clique em **Matricular cliente**.
+2. Em **Nova matrícula**, selecione a turma de destino. Se aparecer **turma cheia (lista de espera)** ou **Colocar na lista de espera**, mantenha a matrícula atual. Confirme com o aluno se deseja entrar na espera ou escolher outra turma.
+3. Havendo vaga, selecione o cadastro correto em **Cliente**, confira **Início da matrícula** e clique em **Matricular**.
+4. Na turma de destino, clique em **Abrir turma** e confirme que o aluno aparece como **Matriculado**. Se ficar em espera ou a matrícula falhar, preserve a vaga de origem.
+5. Só depois dessa confirmação, abra a turma de origem. O cancelamento encerra a matrícula hoje. Se a troca estiver marcada para uma data futura e o aluno ainda precisar frequentar a turma atual, deixe o cancelamento para a data combinada. Em **Participantes**, localize o aluno, clique em **Cancelar matrícula**, confira o nome e confirme. Se o cancelamento falhar, confira a situação nas duas turmas antes de repetir a operação.
 
-1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma** na turma atual do aluno.
-2. Em **Dados da turma**, localize o aluno em **Participantes** e clique em **Cancelar matrícula** na linha dele. Confira o nome na confirmação e clique em **Cancelar matrícula**.
-3. Volte a **Turmas** e clique em **Matricular cliente**.
-4. Na janela **Nova matrícula**, selecione em **Turma** a nova turma, que precisa ter vaga. Em **Cliente**, digite o nome e selecione o cadastro correto.
-5. Confira ou ajuste **Início da matrícula** e clique em **Matricular**.
-6. Na nova turma, clique em **Abrir turma** e confira se o nome aparece como **Matriculado**.
-
-Se a nova turma mostrar **turma cheia (lista de espera)** ou o botão mudar para **Colocar na lista de espera**, ela está sem vaga: escolha outra turma ou siga o fluxo de espera.
-
-**Perguntas:** Como trocar um aluno de turma? | Como mudar o cliente para outra turma? | Como transferir um aluno para outra turma? | Como passar o aluno de uma turma para outra?
+**Perguntas:** Como trocar um aluno de turma? | Como mudar o cliente para outra turma? | Como transferir um aluno para outra turma? | Como passar o aluno de uma turma para outra? | A aluna quer ir da turma de segunda para a de quarta, como passo ela de uma turma para outra? | Como mudar de turma sem perder a vaga atual se a outra já lotou?
 
 **Fontes:**
 - [Participantes e ação de cancelar matrícula](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/groups/GroupDetailsModal.tsx)
@@ -1393,7 +1389,7 @@ Confira a situação na lista. Se a entrada sumir, revise o filtro **Situação*
 
 A entrada desaparece da fila. Para guardar o histórico de alguém que já saiu da espera, escolha **Atendido** ou **Desistiu** em **Situação**.
 
-**Perguntas:** Como remover um cliente da lista de espera? | Como excluir uma entrada da fila? | Onde apago uma espera por produto?
+**Perguntas:** Como remover um cliente da lista de espera? | Como excluir uma entrada da fila? | Onde apago uma espera por produto? | Como retirar da fila quem desistiu da vaga? | A pessoa não quer mais a vaga, como tiro o nome da espera?
 
 **Fontes:**
 - [Ação de remoção e confirmação](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/waitlist/WaitlistManageModal.tsx)
@@ -1422,7 +1418,7 @@ A lista mostra os planos da situação selecionada. Se houver mais de um cartão
 
 O extrato indica a quantidade disponível no momento e detalha o saldo por serviço quando houver mais de um.
 
-**Perguntas:** Como ver o saldo de sessões de um cliente? | Onde consulto o extrato de sessões? | Como conferir se um plano ainda tem validade e sessões?
+**Perguntas:** Como ver o saldo de sessões de um cliente? | Onde consulto o extrato de sessões? | Como conferir se um plano ainda tem validade e sessões? | Onde confiro o crédito restante para aulas?
 
 **Fontes:**
 - [Cartões e abertura do extrato](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/plans/PlansPage.tsx)
@@ -1518,7 +1514,7 @@ As parcelas em aberto são canceladas e as sessões que restavam ficam indispon�
 
 O controle aparece nos planos que admitem renovação automática. Na contratação desses planos, a opção também pode aparecer como **Renovar automaticamente ao fim da validade, com as mesmas condições**.
 
-**Perguntas:** Como ligar a renovação automática de um plano? | Como desligar a renovação automática? | Onde vejo se o plano está com renovação automática?
+**Perguntas:** Como ligar a renovação automática de um plano? | Como desligar a renovação automática? | Onde vejo se o plano está com renovação automática? | Como renovar o pacote sozinho no vencimento?
 
 **Fontes:**
 - [Opção de renovação no cartão e atualização](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/plans/PlansPage.tsx)
@@ -1927,7 +1923,7 @@ Confira o nome do cliente na janela antes de seguir para outra tela.
 
 A interface confirma o contato registrado para o cliente.
 
-**Perguntas:** Como registrar contato em Contatos sugeridos? | Onde registro o resultado de um contato sugerido?
+**Perguntas:** Como registrar contato em Contatos sugeridos? | Onde registro o resultado de um contato sugerido? | Já liguei para a cliente sugerida. Como marco que falei com ela?
 
 **Fontes:**
 - [Ação no cartão de pendências](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/relationship/ClientPendingModal.tsx)
@@ -1957,7 +1953,7 @@ O cartão mostra quem faz aniversário no mês escolhido. As ações de contato 
 
 As campanhas manuais aparecem agrupadas por situação. Os filtros de destinatário ficam dentro de cada campanha.
 
-**Perguntas:** Onde vejo as campanhas em andamento? | Como localizar uma campanha manual concluída?
+**Perguntas:** Onde vejo as campanhas em andamento? | Como localizar uma campanha manual concluída? | Já criei uma campanha manual. Onde encontro ela de novo? Dá pra buscar pelo nome?
 
 **Fontes:**
 - [Listagem por situação e ações das campanhas](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/communications/campaigns/CampaignsTab.tsx)
@@ -2298,7 +2294,7 @@ O detalhe passa a mostrar **Cancelado**. Use o filtro **Situação** na lista pa
 2. Abra **Documentos** e confira a seção **Documentos enviados**. Cada entrada traz o título do documento e os dados da assinatura disponíveis.
 3. Use **Ver registro** quando ele estiver disponível. Se precisar reenviar um documento ainda pendente de assinatura e o botão estiver disponível, use **WhatsApp** na entrada correspondente.
 
-Se a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatura**. Para emitir pelo cadastro do fornecedor, selecione um modelo em **Documentos** e use **Salvar e enviar pelo WhatsApp**. Preencha o **E-mail** em **Dados** se o modelo de documento exigir esse dado.
+Se a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatura**. Para emitir pelo cadastro do fornecedor, selecione um modelo em **Documentos**. Para um fornecedor já salvo, com os dados inalterados e sem pedido aberto para edição, clique em **Enviar pelo WhatsApp**. Para um fornecedor novo, com dados alterados ou com pedido aberto, clique em **Salvar e enviar pelo WhatsApp**. Preencha o **E-mail** em **Dados** se o modelo de documento exigir esse dado.
 
 **Perguntas:** Onde vejo os documentos de um fornecedor? | Como abrir o registro de um documento enviado ao fornecedor?
 
@@ -2317,7 +2313,7 @@ Se a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatur
 
 A página confirma a assinatura. Consulte a cópia assinada ou use a opção de impressão da página se precisar guardar o documento.
 
-**Perguntas:** Como assinar um contrato recebido por link? | Como assino um contrato pelo celular? | Onde desenho minha assinatura no contrato?
+**Perguntas:** Como assinar um contrato recebido por link? | Como assino um contrato pelo celular? | Onde desenho minha assinatura no contrato? | Recebi o contrato num link. Onde assino pelo celular?
 
 **Fontes:**
 - [Página pública e confirmação da assinatura](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/contracts/PublicSignaturePage.tsx)
@@ -2476,7 +2472,7 @@ Confira as informações atualizadas na lista. Para corrigir somente a quantidad
 
 Confira a quantidade atual do produto e a nova movimentação em **Histórico de estoque**.
 
-**Perguntas:** Como ajustar o estoque de um produto? | Como corrigir a quantidade em estoque? | Onde registro uma entrada ou saída de estoque?
+**Perguntas:** Como ajustar o estoque de um produto? | Como corrigir a quantidade em estoque? | Onde registro uma entrada ou saída de estoque? | A quantidade contada está diferente do estoque. Onde ajusto?
 
 **Fontes:**
 - [Entrada do ajuste e histórico de estoque](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/sales/InventorySection.tsx)
@@ -2541,7 +2537,7 @@ As ações disponíveis variam conforme a situação da parcela. Se a lista esti
 
 A parcela original aparece paga pelo valor recebido. O restante aparece como outra parcela em aberto, com **· saldo** na descrição.
 
-**Perguntas:** Como registrar um recebimento parcial? | Como dar baixa só em parte da parcela? | Onde informo o valor recebido quando o cliente pagou uma parte?
+**Perguntas:** Como registrar um recebimento parcial? | Como dar baixa só em parte da parcela? | Onde informo o valor recebido quando o cliente pagou uma parte? | Entrou só um pedaço do que a cliente devia. Onde lanço esse valor?
 
 **Fontes:**
 - [Valor recebido, conferência e baixa parcial](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/SettleModal.tsx)
@@ -2574,7 +2570,7 @@ A parcela aparece em **Pagas**. O **Recibo** mostra as formas e os valores regis
 
 Confira o valor atualizado. A justificativa fica registrada no histórico.
 
-**Perguntas:** Como ajustar uma parcela em aberto? | Onde corrijo o valor de uma parcela antes da baixa?
+**Perguntas:** Como ajustar uma parcela em aberto? | Onde corrijo o valor de uma parcela antes da baixa? | Cobrei o valor errado. Posso arrumar a parcela antes de receber?
 
 **Fontes:**
 - [Ações da parcela](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/ReceivablesList.tsx)
@@ -2621,11 +2617,12 @@ O número do recibo aparece no topo da janela. Use a opção de impressão do na
 4. Confira os dados e clique em **Enviar recibo pelo WhatsApp**.
 5. Confira a conversa e a mensagem com o link de assinatura antes de enviar.
 
-O cliente abre o link para conferir e assinar o recibo. Volte à seção **Assinatura do recibo** para ver a situação registrada no CRM.
+O cliente abre o link para conferir e assinar o recibo. Volte à seção **Assinatura do recibo** para ver a situação registrada no CRM. Se a intenção for apenas revogar um link enviado por engano, o manual não confirma uma ação independente para isso. Preserve o lançamento financeiro: estornar a baixa desfaz o recebimento e cancela o recibo.
 
-**Perguntas:** Como enviar recibo para assinatura pelo WhatsApp? | Onde fica o link para o cliente assinar o recibo? | Como compartilhar a assinatura de um recibo?
+**Perguntas:** Como enviar recibo para assinatura pelo WhatsApp? | Onde fica o link para o cliente assinar o recibo? | Como compartilhar a assinatura de um recibo? | Enviei o link do recibo por engano. Posso revogar só o link e manter o recebimento?
 
 **Fontes:**
+- [Cancelamento do recibo quando a baixa é estornada](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/api/src/modules/finance/receipt-signatures.ts)
 - [Link e acompanhamento no recibo](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/ReceiptModal.tsx)
 
 ## FI10 · Preparar um contato sobre uma parcela
@@ -2652,7 +2649,7 @@ Confira o destinatário e o conteúdo no canal antes de enviar. A mensagem prepa
 
 As parcelas antigas ficam canceladas e as novas aparecem com o valor dividido e vencimentos mensais.
 
-**Perguntas:** Como renegociar parcelas de um cliente? | Onde divido um saldo em novas parcelas no Financeiro?
+**Perguntas:** Como renegociar parcelas de um cliente? | Onde divido um saldo em novas parcelas no Financeiro? | Como combinar novas datas para boletos atrasados?
 
 **Fontes:**
 - [Seleção e ação na lista](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/ReceivablesList.tsx)
@@ -2783,7 +2780,7 @@ Confira o valor e a ação **Pagar** na linha. **Informar valor** aparece nas co
 
 A conta volta a ficar em aberto. A ação **Pagar** fica disponível novamente.
 
-**Perguntas:** Como estornar o pagamento de uma despesa? | Como desfazer um pagamento em Contas a pagar? | Onde registro por que estou estornando uma despesa?
+**Perguntas:** Como estornar o pagamento de uma despesa? | Como desfazer um pagamento em Contas a pagar? | Onde registro por que estou estornando uma despesa? | Marquei uma despesa como paga por engano. Como desfaço o pagamento? | Paguei uma conta de fornecedor por engano, como estorno? | Como volto atrás se marquei a conta de luz como paga?
 
 **Fontes:**
 - [Ação na linha da despesa paga](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/PayablesList.tsx)
@@ -2937,7 +2934,7 @@ O colaborador com salário aparece na folha da competência consultada.
 
 Abra **Detalhes** do colaborador para conferir os ajustes e vales na composição do mês.
 
-**Perguntas:** Como lançar um desconto ou recompensa na folha? | Onde registro um vale de salário?
+**Perguntas:** Como lançar um desconto ou recompensa na folha? | Onde registro um vale de salário? | Adiantei dinheiro à recepcionista. Como abato na folha?
 
 **Fontes:**
 - [Ações e composição da folha](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/PayrollSection.tsx)
@@ -2970,7 +2967,7 @@ O lançamento leva o valor à conta a pagar da folha. Ao desfazer, os itens volt
 
 Revise a data ou o horizonte antes de comparar os valores. A previsão distingue pagamentos confirmados e valores em aberto.
 
-**Perguntas:** Onde vejo o caixa do dia? | Como consultar a previsão financeira? | Como mudar o horizonte da previsão?
+**Perguntas:** Onde vejo o caixa do dia? | Como consultar a previsão financeira? | Como mudar o horizonte da previsão? | Onde vejo quanto vai sobrar no caixa contando o que deve entrar?
 
 **Fontes:**
 - [Abas de Caixa do dia e Previsão](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/FinancePage.tsx)
@@ -3016,7 +3013,7 @@ O navegador baixa o arquivo anexado à operação.
 
 Confira o período escolhido antes de comparar os resultados.
 
-**Perguntas:** Onde consulto a retenção de clientes? | Como ver a retenção mês a mês? | Onde fica o relatório de retenção?
+**Perguntas:** Onde consulto a retenção de clientes? | Como ver a retenção mês a mês? | Onde fica o relatório de retenção? | Qual gráfico mostra se as pessoas continuam voltando?
 
 **Fontes:**
 - [Período e abas de clientes](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/reports/ReportsPage.tsx)
@@ -3096,7 +3093,7 @@ Confira o intervalo e o tipo selecionados antes de comparar os resultados.
 
 Os valores são agrupados pela competência. A lista de lançamentos por categoria aparece só para perfis com acesso ao Financeiro.
 
-**Perguntas:** Onde vejo a DRE por competência? | Como conferir as categorias e baixar a DRE? | Como ver os lançamentos de uma categoria da DRE?
+**Perguntas:** Onde vejo a DRE por competência? | Como conferir as categorias e baixar a DRE? | Como ver os lançamentos de uma categoria da DRE? | Como exportar a DRE para a contadora?
 
 **Fontes:**
 - [Totais, composição e exportação da DRE](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/reports/DreSection.tsx)
@@ -3250,7 +3247,7 @@ Confira o usuário na lista. A seção **Filiais** aparece para usuário comum q
 
 Reabra o cadastro e confira as permissões. Para usar ações de um módulo, o usuário também precisa da permissão de acesso daquele módulo.
 
-**Perguntas:** Como copiar permissões de um usuário? | Como retirar ou mudar permissões de um usuário comum?
+**Perguntas:** Como copiar permissões de um usuário? | Como retirar ou mudar permissões de um usuário comum? | Como liberar o Financeiro para uma funcionária e restringir para outra?
 
 **Fontes:**
 - [Cópia e salvamento das permissões](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/settings/UserFormModal.tsx)
@@ -3421,7 +3418,7 @@ Os feriados importados aparecem com suas datas. Depois da exclusão, confira se 
 
 Confira o aviso de finalização ligada ou desligada. Com ela ativa, o prazo começa após o término do atendimento.
 
-**Perguntas:** Como ligar ou desligar a finalização automática? | Onde altero o prazo para o CRM finalizar atendimentos?
+**Perguntas:** Como ligar ou desligar a finalização automática? | Onde altero o prazo para o CRM finalizar atendimentos? | Como deixar o CRM finalizar sozinho as sessões depois do horário?
 
 **Fontes:**
 - [Prazo, ativação e salvamento](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/settings/AutoFinalizationContent.tsx)
@@ -3466,7 +3463,7 @@ Reabra a aba e confira o limite salvo. O máximo limita as opções de parcelame
 
 Cada código vale 10 minutos e pode ser usado uma vez. Para verificar o recebimento de um assunto selecionado, confira no chat se chegou o aviso após uma ação correspondente no CRM. Os comandos de agenda respondem no chat privado.
 
-**Perguntas:** Como vincular o Telegram ao CRM? | Como configurar avisos do CRM em um grupo do Telegram? | Como mudar ou desativar avisos do Telegram? | Como desvincular um chat ou grupo do Telegram do CRM?
+**Perguntas:** Como vincular o Telegram ao CRM? | Como configurar avisos do CRM em um grupo do Telegram? | Como mudar ou desativar avisos do Telegram? | Como desvincular um chat ou grupo do Telegram do CRM? | Como conferir o vínculo do Telegram depois de clicar em Já enviei?
 
 **Fontes:**
 - [Navegação de Integrações](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/settings/IntegrationsContent.tsx)
@@ -3631,7 +3628,7 @@ O cadastro sai da lista de clientes. Na tela **Clientes**, clique em **Abrir lix
 
 O cadastro sai da Lixeira e volta à lista de **Clientes**. Use a busca para localizá-lo.
 
-**Perguntas:** Como restaurar um cliente da lixeira? | Onde vejo os clientes excluídos? | Como desfazer o envio de um cliente para a lixeira?
+**Perguntas:** Como restaurar um cliente da lixeira? | Onde vejo os clientes excluídos? | Como desfazer o envio de um cliente para a lixeira? | Joguei o cadastro fora por engano. Como trago a aluna de volta?
 
 **Fontes:**
 - [Lista de excluídos e ação Restaurar](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/trash/TrashModal.tsx)

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { data } from "./material.js";
 import { listGuides, manualAreas, readGuides, searchGuides } from "./search.js";
 
 const strong = (query: string) =>
@@ -76,7 +77,7 @@ describe("busca nos guias", () => {
     ["Como inativar uma aluna?", "CL13"],
     ["onde vejo o prontuário", "PR01"],
     ["imprimir contrato", "CT07"],
-    ["Como estornar um pagamento?", "FI06"],
+    ["Como estornar um recebimento?", "FI06"],
     ["reagendar a consulta da paciente", "AG07"],
     ["excluir etiqueta do cliente", "CF20"],
     ["como importar feriados", "CF14"],
@@ -193,7 +194,7 @@ describe("busca nos guias", () => {
 
 describe("confirmação do que a pessoa quis dizer", () => {
   it("não pede confirmação quando um guia responde a pergunta", () => {
-    const result = searchGuides("cliente faltou, como marco a falta?");
+    const result = searchGuides("Como registrar falta em um atendimento?");
     expect(result.confirmacao).toEqual({ necessaria: false });
     expect(result.entendimento.termosDesconhecidos).toEqual([]);
   });
@@ -257,6 +258,67 @@ describe("confirmação do que a pessoa quis dizer", () => {
     const result = searchGuides("cancelei um atendimento sem querer");
     expect(result.entendimento.termosDesconhecidos).toEqual([]);
     expect(result.guias[0]?.id).toBe("cancelar-um-atendimento-agendado");
+  });
+  it.each([
+    ["Como mando um link pra assinatura?", ["CT08", "FI09"]],
+    ["Quero marcar falta", ["AG10", "GR07"]],
+    ["Como marco falta da aluna?", ["AG10", "GR07"]],
+    ["Como envio o link de assinatura pelo WhatsApp?", ["CT08", "FI09"]],
+    ["Como subo uma planilha?", ["CL10", "CM13", "EV07"]],
+    ["A agenda não aparece", ["AC03", "AG01", "AG25"]],
+    ["Quero mudar a turma", ["GR13", "GR03"]],
+    ["Como estornar um pagamento?", ["FI20", "FI06"]],
+  ])(
+    "pergunta pelo contexto que falta antes de sugerir passos: %s",
+    (query, ids) => {
+      const result = searchGuides(query);
+      expect(result.confirmacao).toMatchObject({
+        necessaria: true,
+        motivo: "varias_interpretacoes",
+        pergunta: expect.stringMatching(/\?$/),
+      });
+      expect(result.guias.map(({ id }) => id)).toEqual(ids);
+      expect(strong(query)).toEqual([]);
+    },
+  );
+  it.each([
+    [
+      "Marquei uma despesa como paga sem querer. Como desfaço esse pagamento?",
+      "FI20",
+    ],
+    ["Paguei uma conta de fornecedor por engano, como estorno?", "FI20"],
+    ["Como estorno uma conta a pagar?", "FI20"],
+    ["Como registro falta do aluno na turma?", "GR07"],
+    [
+      "A aluna da segunda quer ir pra turma de quarta. Como passo ela de uma turma pra outra?",
+      "GR13",
+    ],
+    ["Entrou só um pedaço do que ela devia. Onde eu lanço?", "FI03"],
+    [
+      "Já criei uma campanha manual. Onde encontro ela de novo? Dá pra buscar pelo nome?",
+      "CO01",
+    ],
+    [
+      "Tô do outro lado e recebi o contrato num link. Onde assino com o celular?",
+      "AS01",
+    ],
+  ])("recupera a tarefa descrita pela recepção: %s", (query, expected) => {
+    const result = searchGuides(query);
+    expect(result.guias[0]?.id).toBe(expected);
+    if (expected === "FI20") {
+      expect(result.guias[0]?.aderencia).toBe("alta");
+      expect(strong(query)).not.toContain("FI06");
+    }
+  });
+  it("recupera cada título e cada pergunta cadastrada com aderência alta", () => {
+    for (const chapter of data.capitulos) {
+      const questions = "perguntas" in chapter ? chapter.perguntas : [];
+      for (const query of [chapter.titulo, ...questions])
+        expect(searchGuides(query).guias[0], query).toMatchObject({
+          id: chapter.id,
+          aderencia: "alta",
+        });
+    }
   });
   it("busca pelo id não pede confirmação", () => {
     expect(searchGuides("AG07").confirmacao).toEqual({ necessaria: false });
