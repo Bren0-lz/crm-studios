@@ -1,8 +1,16 @@
 /* Meu perfil: foto, dados pessoais, nome na agenda e senha do usuário logado. */
+.page-header:has(+ .profile-layout),
+.page-header:has(+ .profile-panel),
+.profile-layout,
+.page-content > .profile-panel {
+  width: 100%;
+  max-width: calc(var(--space-8) * 14);
+  margin-inline: auto;
+}
+
 .profile-layout {
   display: grid;
   gap: var(--space-5);
-  max-width: calc(var(--space-8) * 14);
 }
 
 .profile-panel > .profile-state {

@@ -1,7 +1,13 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
 import { change, open } from "../../test-support/workflow-ui";
+
+const profileCss = readFileSync(
+  `${process.cwd()}/src/styles/14-profile.css`,
+  "utf8",
+);
 
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
@@ -22,11 +28,15 @@ describe("own profile through real HTTP handlers", () => {
       PROFESSIONAL_ID,
     );
     open("/");
-    fireEvent.click(
-      await screen.findByRole("link", { name: "Meu perfil" }),
-    );
-    await screen.findByRole("heading", { name: "Meu perfil" });
+    fireEvent.click(await screen.findByRole("link", { name: "Meu perfil" }));
+    const heading = await screen.findByRole("heading", { name: "Meu perfil" });
     const data = await screen.findByRole("region", { name: "Dados pessoais" });
+    expect(heading.closest(".page-header")?.nextElementSibling).toHaveClass(
+      "profile-layout",
+    );
+    expect(profileCss).toMatch(
+      /\.page-header:has\(\+\s*\.profile-layout\),\s*\.page-header:has\(\+\s*\.profile-panel\),\s*\.profile-layout,\s*\.page-content\s*>\s*\.profile-panel\s*\{[^}]*max-width:\s*calc\(var\(--space-8\)\s*\*\s*14\);[^}]*margin-inline:\s*auto;/s,
+    );
     expect(within(data).getByLabelText("E-mail de acesso")).toHaveValue(
       "admin@movimenta.local",
     );
