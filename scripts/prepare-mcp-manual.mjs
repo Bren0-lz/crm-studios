@@ -151,15 +151,19 @@ if (process.argv.includes("--write")) {
     }
     fieldIds.add(id);
     const paths = new Set();
-    const sourcePrefix = `https://github.com/Bren0-lz/crm-studios/blob/${fieldRevision}/`;
+    // Um guia pode citar uma fonte revista depois da revisão geral do manual.
+    const sourcePrefix = "https://github.com/Bren0-lz/crm-studios/blob/";
     for (const { url } of references) {
-      if (!url.startsWith(sourcePrefix))
+      const pinned = url
+        .slice(sourcePrefix.length)
+        .match(/^([a-f0-9]{40})\/([^#]+)/);
+      if (!url.startsWith(sourcePrefix) || !pinned)
         throw new Error(`Fonte sem revisão fixa: ${id}`);
-      const path = url.slice(sourcePrefix.length).split("#")[0];
+      const [, sourceRevision, path] = pinned;
       const contents = read(path);
       const reviewedContents = execFileSync(
         "git",
-        ["show", `${fieldRevision}:${path}`],
+        ["show", `${sourceRevision}:${path}`],
         {
           cwd: root,
           encoding: "utf8",

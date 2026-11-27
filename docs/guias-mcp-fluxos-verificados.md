@@ -97,7 +97,7 @@ Esse caminho vale quando o botão **Remarcar atendimento** estiver disponível n
 
 Se a lista estiver vazia, tente outro dado no mesmo campo. Se houver filtros ativos, abra **Filtros** e confira se a situação ou a etiqueta escolhida pode estar deixando o cadastro de fora.
 
-**Perguntas:** Como localizar um cliente? | Como buscar um cliente cadastrado? | Como encontrar uma aluna sem mexer em nada? | Onde busco um cliente pelo CPF? | Como pesquisar um cliente pelo telefone? | Como localizar uma aluna sem mexer em nada? | Como encontro o cadastro de um aluno?
+**Perguntas:** Como localizar um cliente? | Como buscar um cliente cadastrado? | Como encontrar uma aluna sem mexer em nada? | Onde busco um cliente pelo CPF? | Como pesquisar um cliente pelo telefone? | Como localizar uma aluna sem mexer em nada? | Como encontro o cadastro de um aluno? | Cadastrei uma aluna mas esqueci o sobrenome, onde acho a ficha dela?
 
 **Fontes:**
 - [Busca e filtros de Clientes](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/patients/PatientsPage.tsx)
@@ -361,12 +361,13 @@ A tela de entrada volta a aparecer. **Encerrar acessos** também encerra sua ses
 3. Confira o nome selecionado no cabeçalho após a tela atualizar.
 4. Para consultar o conjunto de filiais disponíveis, escolha **Todas as filiais**.
 
-O seletor aparece quando sua conta tem acesso a pelo menos duas filiais ativas. Confira a filial antes de salvar registros como agendamentos ou lançamentos financeiros.
+O seletor aparece quando sua conta tem acesso a pelo menos duas filiais ativas. Em **Todas as filiais**, os novos registros que usam a filial ativa são gravados na filial padrão da clínica se você tiver acesso a ela, ou na primeira filial ativa a que você tiver acesso. Uma operação sobre um registro existente pode usar a filial desse registro. Para criar um agendamento ou lançamento em uma unidade específica, selecione essa filial pelo nome antes de salvar.
 
-**Perguntas:** Como trocar de filial? | Onde seleciono a filial ativa? | Como voltar para Todas as filiais?
+**Perguntas:** Como trocar de filial? | Onde seleciono a filial ativa? | Como voltar para Todas as filiais? | Em qual filial entra o agendamento se eu salvar com Todas as filiais?
 
 **Fontes:**
 - [Seletor e condições de exibição](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/app/BranchSelector.tsx)
+- [Escolha da filial de gravação no modo consolidado](https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/api/src/infrastructure/route-context.ts)
 - [Atualização da tela na troca de filial](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/app/Shell.tsx)
 
 ## AC05 · Abrir a tela de origem de uma notificação
@@ -494,12 +495,12 @@ Quando o painel mostra **0 pendentes hoje**, a fila do dia está vazia.
 1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).
 2. Selecione **Dia**, **Semana** ou **Mês**. Em **Dia**, use **Grade** ou **Lista**.
 3. Use as setas ao lado da data para avançar ou voltar. Clique em **Hoje** para retornar à data atual.
-4. Use **Profissional** para escolher quem aparece na agenda.
+4. Use **Profissional** para escolher quem aparece na agenda. Se você só vê a própria agenda e o filtro está ausente, peça ao administrador para conferir **Ver agenda de todos os profissionais** nas permissões do usuário (guia CF04).
 5. Marque **Mostrar cancelados** se quiser ver esses atendimentos. Use **Mostrar notas** para controlar a exibição das notas.
 
 Confira o período exibido no alto da agenda. No celular, abra **Filtros** para ver as opções recolhidas.
 
-**Perguntas:** Como navegar na agenda? | Como filtrar a agenda por profissional? | Como mostrar as notas na agenda? | Como trocar a agenda para semana ou mês?
+**Perguntas:** Como navegar na agenda? | Como filtrar a agenda por profissional? | Como mostrar as notas na agenda? | Como trocar a agenda para semana ou mês? | Onde vejo a agenda das colegas? | Por que só aparece a minha agenda?
 
 **Fontes:**
 - [Navegação, visualizações e filtros da Agenda](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AgendaPage.tsx)
@@ -807,9 +808,9 @@ O CRM fecha a pesquisa depois de registrar a avaliação para aquele cliente e a
 4. Na janela do dia, leia o aviso **Feriado** e a lista de compromissos daquele dia, quando houver.
 5. Clique em **Abrir dia na agenda** para continuar na programação diária.
 
-O nome do feriado aparece no calendário e no detalhe do dia. Se você tem acesso ao módulo **Eventos**, os eventos comerciais também aparecem na Agenda. Clique no nome de um evento na lista de compromissos para abrir os detalhes.
+O nome do feriado aparece no calendário e no detalhe do dia. Para ver eventos comerciais, abra a **Agenda** pelo menu geral com acesso ao módulo **Eventos**. A Agenda aberta no contexto de um cliente oculta esses eventos. Clique no nome de um evento na lista de compromissos para abrir os detalhes.
 
-**Perguntas:** Onde vejo se um dia é feriado na Agenda? | Como conferir os compromissos de um dia no mês? | Como abrir os eventos de um dia na Agenda?
+**Perguntas:** Onde vejo se um dia é feriado na Agenda? | Como conferir os compromissos de um dia no mês? | Como abrir os eventos de um dia na Agenda? | Por que o evento comercial não aparece quando abro a agenda pela ficha do cliente?
 
 **Fontes:**
 - [Calendário mensal e abertura do dia](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/agenda/AgendaPage.tsx)
@@ -1289,18 +1290,13 @@ A mudança pode ser conferida ao reabrir aquele encontro. O seletor mostra os pr
 
 ## GR13 · Trocar um aluno de turma
 
-O CRM não tem uma ação única de troca: cancele a matrícula na turma atual e matricule o aluno na nova turma.
+1. Abra [**Turmas**](https://crm.organizastudios.com/turmas), confira o horário da turma de destino e clique em **Matricular cliente**.
+2. Em **Nova matrícula**, selecione a turma de destino. Se aparecer **turma cheia (lista de espera)** ou **Colocar na lista de espera**, mantenha a matrícula atual. Confirme com o aluno se deseja entrar na espera ou escolher outra turma.
+3. Havendo vaga, selecione o cadastro correto em **Cliente**, confira **Início da matrícula** e clique em **Matricular**.
+4. Na turma de destino, clique em **Abrir turma** e confirme que o aluno aparece como **Matriculado**. Se ficar em espera ou a matrícula falhar, preserve a vaga de origem.
+5. Só depois dessa confirmação, abra a turma de origem. O cancelamento encerra a matrícula hoje. Se a troca estiver marcada para uma data futura e o aluno ainda precisar frequentar a turma atual, deixe o cancelamento para a data combinada. Em **Participantes**, localize o aluno, clique em **Cancelar matrícula**, confira o nome e confirme. Se o cancelamento falhar, confira a situação nas duas turmas antes de repetir a operação.
 
-1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma** na turma atual do aluno.
-2. Em **Dados da turma**, localize o aluno em **Participantes** e clique em **Cancelar matrícula** na linha dele. Confira o nome na confirmação e clique em **Cancelar matrícula**.
-3. Volte a **Turmas** e clique em **Matricular cliente**.
-4. Na janela **Nova matrícula**, selecione em **Turma** a nova turma, que precisa ter vaga. Em **Cliente**, digite o nome e selecione o cadastro correto.
-5. Confira ou ajuste **Início da matrícula** e clique em **Matricular**.
-6. Na nova turma, clique em **Abrir turma** e confira se o nome aparece como **Matriculado**.
-
-Se a nova turma mostrar **turma cheia (lista de espera)** ou o botão mudar para **Colocar na lista de espera**, ela está sem vaga: escolha outra turma ou siga o fluxo de espera.
-
-**Perguntas:** Como trocar um aluno de turma? | Como mudar o cliente para outra turma? | Como transferir um aluno para outra turma? | Como passar o aluno de uma turma para outra?
+**Perguntas:** Como trocar um aluno de turma? | Como mudar o cliente para outra turma? | Como transferir um aluno para outra turma? | Como passar o aluno de uma turma para outra? | A aluna quer ir da turma de segunda para a de quarta, como passo ela de uma turma para outra?
 
 **Fontes:**
 - [Participantes e ação de cancelar matrícula](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/groups/GroupDetailsModal.tsx)
@@ -1957,7 +1953,7 @@ O cartão mostra quem faz aniversário no mês escolhido. As ações de contato 
 
 As campanhas manuais aparecem agrupadas por situação. Os filtros de destinatário ficam dentro de cada campanha.
 
-**Perguntas:** Onde vejo as campanhas em andamento? | Como localizar uma campanha manual concluída?
+**Perguntas:** Onde vejo as campanhas em andamento? | Como localizar uma campanha manual concluída? | Já criei uma campanha manual. Onde encontro ela de novo? Dá pra buscar pelo nome?
 
 **Fontes:**
 - [Listagem por situação e ações das campanhas](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/communications/campaigns/CampaignsTab.tsx)
@@ -2298,7 +2294,7 @@ O detalhe passa a mostrar **Cancelado**. Use o filtro **Situação** na lista pa
 2. Abra **Documentos** e confira a seção **Documentos enviados**. Cada entrada traz o título do documento e os dados da assinatura disponíveis.
 3. Use **Ver registro** quando ele estiver disponível. Se precisar reenviar um documento ainda pendente de assinatura e o botão estiver disponível, use **WhatsApp** na entrada correspondente.
 
-Se a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatura**. Para emitir pelo cadastro do fornecedor, selecione um modelo em **Documentos** e use **Salvar e enviar pelo WhatsApp**. Preencha o **E-mail** em **Dados** se o modelo de documento exigir esse dado.
+Se a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatura**. Para emitir pelo cadastro do fornecedor, selecione um modelo em **Documentos**. Para um fornecedor já salvo, com os dados inalterados e sem pedido aberto para edição, clique em **Enviar pelo WhatsApp**. Para um fornecedor novo, com dados alterados ou com pedido aberto, clique em **Salvar e enviar pelo WhatsApp**. Preencha o **E-mail** em **Dados** se o modelo de documento exigir esse dado.
 
 **Perguntas:** Onde vejo os documentos de um fornecedor? | Como abrir o registro de um documento enviado ao fornecedor?
 
@@ -2317,7 +2313,7 @@ Se a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatur
 
 A página confirma a assinatura. Consulte a cópia assinada ou use a opção de impressão da página se precisar guardar o documento.
 
-**Perguntas:** Como assinar um contrato recebido por link? | Como assino um contrato pelo celular? | Onde desenho minha assinatura no contrato?
+**Perguntas:** Como assinar um contrato recebido por link? | Como assino um contrato pelo celular? | Onde desenho minha assinatura no contrato? | Recebi o contrato num link. Onde assino pelo celular?
 
 **Fontes:**
 - [Página pública e confirmação da assinatura](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/contracts/PublicSignaturePage.tsx)
@@ -2541,7 +2537,7 @@ As ações disponíveis variam conforme a situação da parcela. Se a lista esti
 
 A parcela original aparece paga pelo valor recebido. O restante aparece como outra parcela em aberto, com **· saldo** na descrição.
 
-**Perguntas:** Como registrar um recebimento parcial? | Como dar baixa só em parte da parcela? | Onde informo o valor recebido quando o cliente pagou uma parte?
+**Perguntas:** Como registrar um recebimento parcial? | Como dar baixa só em parte da parcela? | Onde informo o valor recebido quando o cliente pagou uma parte? | Entrou só um pedaço do que a cliente devia. Onde lanço esse valor?
 
 **Fontes:**
 - [Valor recebido, conferência e baixa parcial](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/SettleModal.tsx)
@@ -2621,11 +2617,12 @@ O número do recibo aparece no topo da janela. Use a opção de impressão do na
 4. Confira os dados e clique em **Enviar recibo pelo WhatsApp**.
 5. Confira a conversa e a mensagem com o link de assinatura antes de enviar.
 
-O cliente abre o link para conferir e assinar o recibo. Volte à seção **Assinatura do recibo** para ver a situação registrada no CRM.
+O cliente abre o link para conferir e assinar o recibo. Volte à seção **Assinatura do recibo** para ver a situação registrada no CRM. Se a intenção for apenas revogar um link enviado por engano, o manual não confirma uma ação independente para isso. Preserve o lançamento financeiro: estornar a baixa desfaz o recebimento e cancela o recibo.
 
-**Perguntas:** Como enviar recibo para assinatura pelo WhatsApp? | Onde fica o link para o cliente assinar o recibo? | Como compartilhar a assinatura de um recibo?
+**Perguntas:** Como enviar recibo para assinatura pelo WhatsApp? | Onde fica o link para o cliente assinar o recibo? | Como compartilhar a assinatura de um recibo? | Enviei o link do recibo por engano. Posso revogar só o link e manter o recebimento?
 
 **Fontes:**
+- [Cancelamento do recibo quando a baixa é estornada](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/api/src/modules/finance/receipt-signatures.ts)
 - [Link e acompanhamento no recibo](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/ReceiptModal.tsx)
 
 ## FI10 · Preparar um contato sobre uma parcela
@@ -2783,7 +2780,7 @@ Confira o valor e a ação **Pagar** na linha. **Informar valor** aparece nas co
 
 A conta volta a ficar em aberto. A ação **Pagar** fica disponível novamente.
 
-**Perguntas:** Como estornar o pagamento de uma despesa? | Como desfazer um pagamento em Contas a pagar? | Onde registro por que estou estornando uma despesa?
+**Perguntas:** Como estornar o pagamento de uma despesa? | Como desfazer um pagamento em Contas a pagar? | Onde registro por que estou estornando uma despesa? | Marquei uma despesa como paga por engano. Como desfaço o pagamento? | Paguei uma conta de fornecedor por engano, como estorno?
 
 **Fontes:**
 - [Ação na linha da despesa paga](https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/PayablesList.tsx)

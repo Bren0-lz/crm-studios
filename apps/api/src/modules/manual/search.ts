@@ -156,19 +156,35 @@ function stem(word: string) {
   return canonical.get(w) ?? infinitive(w) ?? w;
 }
 
+function normalize(text: string) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function phrase(text: string) {
+  return normalize(text)
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 function words(text: string) {
   return (
-    text
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      // "Cancelei sem querer" não pede um guia "sem" alguma coisa.
-      .replace(/\b(sem querer|por engano|por erro)\b/g, " ")
-      .match(/[a-z0-9]+/g) ?? []
-  ).filter((word) => !stop.has(word));
+    (
+      normalize(text)
+        // "Cancelei sem querer" não pede um guia "sem" alguma coisa.
+        .replace(/\b(sem querer|por engano|por erro)\b/g, " ")
+        .match(/[a-z0-9]+/g) ?? []
+    ).filter((word) => !stop.has(word))
+  );
 }
 function tokens(text: string) {
-  return [...new Set(words(text).map(stem))];
+  // "Conta a pagar" e "conta a receber" identificam lados diferentes do financeiro.
+  const normalized = normalize(text)
+    .replace(/\bcontas? a pagar\b/g, "despesa")
+    .replace(/\bcontas? a receber\b/g, "recebimento");
+  return [...new Set(words(normalized).map(stem))];
 }
 /** Sem sinônimos: "onde vejo" e "como buscar" são perguntas diferentes. */
 function literal(text: string) {
@@ -182,12 +198,7 @@ const articles = new Set(["um", "uma", "uns", "umas", "o", "a", "os", "as"]);
  * cliente" o assunto é a etiqueta; "cliente" só vem depois de "de".
  */
 function heads(text: string) {
-  const all =
-    text
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .match(/[a-z0-9]+/g) ?? [];
+  const all = normalize(text).match(/[a-z0-9]+/g) ?? [];
   const result = new Set<string>();
   let afterPreposition = false;
   for (const word of all) {
@@ -204,6 +215,79 @@ function heads(text: string) {
 
 function queryKey(words: string[]) {
   return [...words].sort().join(" ");
+}
+
+// Para pedidos curtos que omitem o objeto da ação, ofereça apenas os caminhos pertinentes.
+// A chave inclui todos os termos da consulta: especificar "contrato" ou "turma" sai da regra.
+function clarificationKey(text: string) {
+  const key = queryKey(
+    tokens(text).filter((word) => !["celular", "whatsapp"].includes(word)),
+  );
+  return /\bnao\b/.test(normalize(text)) ? `nao ${key}` : key;
+}
+
+const clarificationKeys = new Map<
+  string,
+  { question: string; ids: string[] }
+>();
+for (const [examples, question, ids] of [
+  [
+    [
+      "mandar link para assinatura",
+      "enviar link para assinar",
+      "compartilhar link de assinatura",
+    ],
+    "Qual documento você quer enviar para assinatura: contrato ou recibo?",
+    ["CT08", "FI09"],
+  ],
+  [
+    ["link de assinatura"],
+    "Você quer enviar um documento ou assinar um link que recebeu? É um contrato ou um recibo?",
+    ["CT08", "FI09", "AS01", "AS02"],
+  ],
+  [
+    [
+      "subo planilha",
+      "subir planilha",
+      "importar planilha",
+      "importo planilha",
+      "carregar planilha",
+    ],
+    "A planilha tem clientes, leads ou participantes de um evento?",
+    ["CL10", "CM13", "EV07"],
+  ],
+  [
+    [
+      "marcar falta",
+      "registrar falta",
+      "lançar falta",
+      "marco falta",
+      "cliente faltou como marco a falta",
+      "marcar falta da aluna",
+      "registrar falta de aluno",
+      "marco falta do aluno",
+    ],
+    "A falta foi em um atendimento individual ou em uma aula de turma?",
+    ["AG10", "GR07"],
+  ],
+  [
+    ["agenda não aparece", "agenda sumiu", "agenda desapareceu"],
+    "O que está faltando: o menu Agenda, a agenda de outro profissional ou um evento comercial?",
+    ["AC03", "AG01", "AG25"],
+  ],
+  [
+    ["mudar turma"],
+    "Você quer transferir um aluno para outra turma ou alterar os dados da própria turma?",
+    ["GR13", "GR03"],
+  ],
+  [
+    ["estornar pagamento"],
+    "O valor foi pago a um fornecedor ou recebido de um cliente?",
+    ["FI20", "FI06"],
+  ],
+] satisfies [string[], string, string[]][]) {
+  for (const example of examples)
+    clarificationKeys.set(clarificationKey(example), { question, ids });
 }
 
 const index = data.capitulos.map((chapter) => {
@@ -227,6 +311,7 @@ const index = data.capitulos.map((chapter) => {
       ]),
     ),
     body: new Set(tokens(chapter.trecho)),
+    phrases: new Set([chapter.titulo, ...questions].map(phrase)),
     keys: new Set(
       [chapter.titulo, ...questions].map((question) =>
         queryKey(literal(question)),
@@ -266,6 +351,9 @@ function rank(words: string[]) {
         titleWords.filter((word) => words.includes(word)).length /
         Math.max(1, titleWords.length);
       const fits =
+        (!words.includes("estornar") ||
+          !words.includes("despesa") ||
+          entry.intent.has("despesa")) &&
         words.every(
           (word) =>
             !(actions.has(word) || polarity.has(word)) ||
@@ -369,20 +457,34 @@ export function searchGuides(consulta: string, limite = 8) {
   const words = tokens(consulta);
   // Pergunta igual a uma cadastrada (sem sinônimos) vai para o topo.
   const key = queryKey(literal(consulta));
+  const clarification = byId
+    ? undefined
+    : clarificationKeys.get(clarificationKey(consulta));
+  const exact = phrase(consulta);
   const ranked = byId
     ? [{ entry: byId, score: 1, coverage: 1, fits: true }]
-    : words.length
-      ? rank(words)
-          .filter((item) => item.coverage >= 0.3)
-          // Ação diferente da pedida continua na lista, mas atrás das que servem.
-          .map((item) => ({
-            ...item,
-            score:
-              (item.fits ? item.score : item.score / 2) +
-              (key && item.entry.keys.has(key) ? 1000 : 0),
-          }))
-          .sort((a, b) => b.score - a.score)
-      : [];
+    : clarification
+      ? clarification.ids.flatMap((id) => {
+          const entry = index.find((item) => item.chapter.id === id);
+          return entry ? [{ entry, score: 0, coverage: 0, fits: false }] : [];
+        })
+      : words.length
+        ? rank(words)
+            .map((item) =>
+              item.entry.phrases.has(exact)
+                ? { ...item, fits: true, coverage: 1, score: item.score + 2000 }
+                : item,
+            )
+            .filter((item) => item.coverage >= 0.3)
+            // Ação diferente da pedida continua na lista, mas atrás das que servem.
+            .map((item) => ({
+              ...item,
+              score:
+                (item.fits ? item.score : item.score / 2) +
+                (key && item.entry.keys.has(key) ? 1000 : 0),
+            }))
+            .sort((a, b) => b.score - a.score)
+        : [];
   // "Alta": cobre a tarefa e a ação pedidas e pontua perto do melhor desses guias.
   const best = ranked.find((item) => item.fits && item.coverage >= 0.75)?.score;
   const isStrong = (item: (typeof ranked)[number]) =>
@@ -390,17 +492,21 @@ export function searchGuides(consulta: string, limite = 8) {
     item.fits &&
     item.coverage >= 0.75 &&
     item.score >= best * 0.85;
-  const candidates = ranked.slice(0, limite).map((item) => ({
-    id: item.entry.chapter.id,
-    titulo: item.entry.chapter.titulo,
-    area: areaOf(item.entry.chapter),
-    aderencia: isStrong(item) ? ("alta" as const) : ("parcial" as const),
-    perguntas: (
-      ("perguntas" in item.entry.chapter
-        ? item.entry.chapter.perguntas
-        : []) as string[]
-    ).slice(0, 3),
-  }));
+  // Uma correspondência parcial não deve esconder um guia forte mais abaixo na lista.
+  const candidates = ranked
+    .sort((a, b) => Number(isStrong(b)) - Number(isStrong(a)))
+    .slice(0, limite)
+    .map((item) => ({
+      id: item.entry.chapter.id,
+      titulo: item.entry.chapter.titulo,
+      area: areaOf(item.entry.chapter),
+      aderencia: isStrong(item) ? ("alta" as const) : ("parcial" as const),
+      perguntas: (
+        ("perguntas" in item.entry.chapter
+          ? item.entry.chapter.perguntas
+          : []) as string[]
+      ).slice(0, 3),
+    }));
   const strongOnes = candidates.filter((item) => item.aderencia === "alta");
   const status = strongOnes.length
     ? "guias_relacionados"
@@ -408,20 +514,18 @@ export function searchGuides(consulta: string, limite = 8) {
       ? "so_guias_parciais"
       : "nenhum_guia";
   const termosDesconhecidos = byId ? [] : unknownWords(consulta);
-  // Guias fortes em áreas diferentes ("trocar aluno de turma" casa com turma e com grupo do
-  // Telegram; "dar desconto" com cliente e com colaborador): a pessoa precisa escolher.
+  // Além das ambiguidades conhecidas, confirme quando houver guias fortes em áreas distintas.
   const motivo =
     status === "nenhum_guia"
       ? ("nenhum_guia" as const)
-      : status === "so_guias_parciais"
-        ? ("sem_guia_exato" as const)
-        : new Set(strongOnes.map((item) => item.area)).size > 1
-          ? ("varias_interpretacoes" as const)
-          : undefined;
-  const options = (strongOnes.length > 1 ? strongOnes : candidates).slice(
-    0,
-    4,
-  );
+      : clarification
+        ? ("varias_interpretacoes" as const)
+        : status === "so_guias_parciais"
+          ? ("sem_guia_exato" as const)
+          : new Set(strongOnes.map((item) => item.area)).size > 1
+            ? ("varias_interpretacoes" as const)
+            : undefined;
+  const options = (strongOnes.length > 1 ? strongOnes : candidates).slice(0, 4);
   return {
     status,
     revisao: revision(),
@@ -438,6 +542,7 @@ export function searchGuides(consulta: string, limite = 8) {
       ? {
           necessaria: true,
           motivo,
+          ...(clarification ? { pergunta: clarification.question } : {}),
           opcoes:
             motivo === "nenhum_guia"
               ? []

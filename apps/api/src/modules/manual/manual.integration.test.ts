@@ -4,6 +4,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
+import { data } from "./material.js";
 
 const token = "piloto-somente-teste-0000000000000000000000000";
 const headers = { authorization: `Bearer ${token}` };
@@ -105,6 +106,34 @@ describe("manual MCP isolado do CRM", () => {
     );
     expect(findUser).not.toHaveBeenCalled();
     expect(patients).not.toHaveBeenCalled();
+  });
+  it("lê todos os guias do catálogo em lotes, inclusive os ids legados longos", async () => {
+    const sdk = await connect();
+    for (let start = 0; start < data.capitulos.length; start += 10) {
+      const chapters = data.capitulos.slice(start, start + 10);
+      const read = await sdk.callTool({
+        name: "ler_guias",
+        arguments: { ids: chapters.map((chapter) => chapter.id) },
+      });
+      expect(read.isError).not.toBe(true);
+      expect(read.structuredContent).toMatchObject({
+        guias: chapters.map(({ id, trecho, referencias }) => ({
+          id,
+          trecho,
+          referencias,
+        })),
+        naoEncontrados: [],
+      });
+    }
+    for (const chapter of data.capitulos.filter(({ id }) => id.length > 40)) {
+      const read = await sdk.callTool({
+        name: "ler_guias",
+        arguments: { ids: [chapter.id] },
+      });
+      expect(read.structuredContent).toMatchObject({
+        guias: [{ id: chapter.id, trecho: chapter.trecho }],
+      });
+    }
   });
   it("lista as áreas e os guias de uma área, e mostra o mapa do CRM", async () => {
     const sdk = await connect();

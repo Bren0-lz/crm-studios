@@ -99,7 +99,7 @@ export function registerManualRoutes(
           description:
             "Lê o texto completo de até 10 guias pelo id (ex.: AG07, CL13), com os passos, condições e referências ao código conferido. Use os guias como base para montar a resposta adaptada à pergunta.",
           inputSchema: {
-            ids: z.array(z.string().trim().min(1).max(40)).min(1).max(10),
+            ids: z.array(z.string().trim().min(1)).min(1).max(10),
           },
           annotations: readOnly,
         },

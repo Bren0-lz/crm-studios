@@ -1,6 +1,6 @@
 {
-  "revisao": "9fcab28205c60023d02192ad0022b7dc0ee35eb9",
-  "material": "2cb83a4b05444424ee5d39fea5150af81d7cd5a4ec1f1ec836f20fcae6d1fde9",
+  "revisao": "98891840415f96f15ecaf404fa7cdb8e0cc983b6",
+  "material": "da9c738968a85883da78efee4885db2650388cac234be9721a8775bdb9e01acf",
   "manualPath": "docs/manual-crm-organiza-studios.md",
   "manualSha256": "0e777d85e81ce7fd5d1a7e12f51486efd373a0384e5f72c6053fcb3a9d100ff7",
   "sourceHashes": {
@@ -53,6 +53,7 @@
     "apps/web/src/features/reports/ReportTabs.tsx": "6a517867680123168f1769b3d3d094bcce3c3a838abd751f0bd6f0fa6dbec218",
     "apps/web/src/shared/auth/RevokeSessionsButton.tsx": "76593e80129677cbf6d7b81df17828b580a6be823f48765a7499b318179b1464",
     "apps/web/src/app/BranchSelector.tsx": "62f311d3f43963c11f5a59b924a9bff6821e4f0f747bf63e28d1f88fb748e0d6",
+    "apps/api/src/infrastructure/route-context.ts": "59c3fe425c8248bda0216f3a998c0642341a6335839534ad6c71a405311cae87",
     "apps/web/src/app/notification-center.tsx": "937b17c27d11cf4f787fda163d0bcbde118f7e668d11a57e3ea3873dfb6a40ea",
     "apps/web/src/app/NotificationSettingsModal.tsx": "80697d6391e34b7821f9ceadda97913f260d5193a4d861f1ea73e2f8c84e717b",
     "apps/web/src/shared/components/EmergencyButton.tsx": "b1527f616092dd1093f4b4a63513f32d10d99165b09a52d6c333ddd45fcab9cc",
@@ -154,6 +155,7 @@
     "apps/web/src/features/finance/ReceiptModal.tsx": "ddf3cd77229496ecff56c1d58e86508fc144f03f4ca09951648be9fae403c416",
     "apps/web/src/features/finance/ReceivableAdjustModal.tsx": "ebaf53feff53299db4a55ce1b5af76deb8324d1584a45d344b92843ca7417657",
     "apps/web/src/features/finance/PaymentProofs.tsx": "d903998f13570f9284f0394ac5604d2657f8fb3d2bfb7112f524b8d22ce41408",
+    "apps/api/src/modules/finance/receipt-signatures.ts": "9f4fb78573dbbe72626e0d37dbcc34e97337d8d28cca2566036d1b92c677d1c7",
     "apps/web/src/features/finance/ReceivableContactModal.tsx": "e4daadebeaa0c1e1db9ce4eee9ca4726713edcc5a7415baf2aff54b944ace3bc",
     "apps/web/src/features/finance/NewExpenseModal.tsx": "79f2601045e9ec2ec954fc6bf2c40f24732a1db504436fc62c24777576419f11",
     "apps/web/src/features/finance/RecurringPayablesSection.tsx": "ca733f856fce89bf0c3ff0a9faa58a4c8a7209bdc88b32c9b95f3e03edbace21",
@@ -216,7 +218,7 @@
     "apps/web/src/features/trash/SendToTrashModal.tsx": "b22fc267294fa933fb375e424a866508503b56a70c1c103e7bd1677d4b3094f2",
     "apps/web/src/features/trash/TrashModal.tsx": "99cf3b20c146f63a68639e3465648ae65eb2756ccec9d4c6b894f081ddf02dc2",
     "apps/web/src/features/trash/PurgeConfirmModal.tsx": "431247cc24391c5df720e8892632dfe3861addeb38ece271af4b6e83ed79d57f",
-    "docs/guias-mcp-fluxos-verificados.md": "ac36e065872c3440bff8067c71988d39d09e22e03eb3a114116c24dab9aa8144"
+    "docs/guias-mcp-fluxos-verificados.md": "aaa31a2476aa261a685f777b99d432820fa6f9252e2fa81354a07f36b131ecff"
   },
   "excluidos": [
     "Agendar um atendimento",
@@ -280,23 +282,23 @@
         },
         {
           "titulo": "AgendaCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "AppointmentDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "agenda-card-menu.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
         },
         {
           "titulo": "appointment-attendance.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
         },
         {
           "titulo": "agenda-cancelled.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
         }
       ],
       "fontes": [
@@ -322,15 +324,15 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/commercial/LeadModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/commercial/LeadModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ],
       "fontes": [
@@ -354,19 +356,19 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/commercial/LeadCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/commercial/LeadCard.tsx"
         },
         {
           "titulo": "LeadConvertModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/commercial/LeadConvertModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/commercial/LeadConvertModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ],
       "fontes": [
@@ -391,15 +393,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/groups/GroupModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/groups/GroupModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/e2e/groups.spec.ts"
         }
       ],
       "fontes": [
@@ -423,15 +425,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/e2e/groups.spec.ts"
         }
       ],
       "fontes": [
@@ -455,11 +457,11 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/e2e/groups.spec.ts"
         }
       ],
       "fontes": [
@@ -482,15 +484,15 @@
         },
         {
           "titulo": "PlansPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "PlanModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/plans/PlanModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/e2e/plans-finance.spec.ts"
         }
       ],
       "fontes": [
@@ -514,15 +516,15 @@
         },
         {
           "titulo": "WaitlistPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/waitlist/WaitlistPage.tsx"
         },
         {
           "titulo": "WaitlistEntryModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
         },
         {
           "titulo": "waitlist-page.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
         }
       ],
       "fontes": [
@@ -546,19 +548,19 @@
         },
         {
           "titulo": "FinancePage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "ReceivablesList.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "SettleModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/9fcab28205c60023d02192ad0022b7dc0ee35eb9/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/e2e/plans-finance.spec.ts"
         }
       ],
       "fontes": [
@@ -721,7 +723,8 @@
         "Onde busco um cliente pelo CPF?",
         "Como pesquisar um cliente pelo telefone?",
         "Como localizar uma aluna sem mexer em nada?",
-        "Como encontro o cadastro de um aluno?"
+        "Como encontro o cadastro de um aluno?",
+        "Cadastrei uma aluna mas esqueci o sobrenome, onde acho a ficha dela?"
       ],
       "fontes": [
         "apps/web/src/features/patients/PatientsPage.tsx"
@@ -1119,11 +1122,15 @@
     {
       "id": "AC04",
       "titulo": "Selecionar a filial de trabalho",
-      "trecho": "## Selecionar a filial de trabalho\n\n1. No cabeçalho do CRM, abra o seletor **Filial ativa**.\n2. Clique no nome da filial em que vai trabalhar.\n3. Confira o nome selecionado no cabeçalho após a tela atualizar.\n4. Para consultar o conjunto de filiais disponíveis, escolha **Todas as filiais**.\n\nO seletor aparece quando sua conta tem acesso a pelo menos duas filiais ativas. Confira a filial antes de salvar registros como agendamentos ou lançamentos financeiros.",
+      "trecho": "## Selecionar a filial de trabalho\n\n1. No cabeçalho do CRM, abra o seletor **Filial ativa**.\n2. Clique no nome da filial em que vai trabalhar.\n3. Confira o nome selecionado no cabeçalho após a tela atualizar.\n4. Para consultar o conjunto de filiais disponíveis, escolha **Todas as filiais**.\n\nO seletor aparece quando sua conta tem acesso a pelo menos duas filiais ativas. Em **Todas as filiais**, os novos registros que usam a filial ativa são gravados na filial padrão da clínica se você tiver acesso a ela, ou na primeira filial ativa a que você tiver acesso. Uma operação sobre um registro existente pode usar a filial desse registro. Para criar um agendamento ou lançamento em uma unidade específica, selecione essa filial pelo nome antes de salvar.",
       "referencias": [
         {
           "titulo": "Seletor e condições de exibição",
           "url": "https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/app/BranchSelector.tsx"
+        },
+        {
+          "titulo": "Escolha da filial de gravação no modo consolidado",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/98891840415f96f15ecaf404fa7cdb8e0cc983b6/apps/api/src/infrastructure/route-context.ts"
         },
         {
           "titulo": "Atualização da tela na troca de filial",
@@ -1133,10 +1140,12 @@
       "perguntas": [
         "Como trocar de filial?",
         "Onde seleciono a filial ativa?",
-        "Como voltar para Todas as filiais?"
+        "Como voltar para Todas as filiais?",
+        "Em qual filial entra o agendamento se eu salvar com Todas as filiais?"
       ],
       "fontes": [
         "apps/web/src/app/BranchSelector.tsx",
+        "apps/api/src/infrastructure/route-context.ts",
         "apps/web/src/app/Shell.tsx"
       ]
     },
@@ -1315,7 +1324,7 @@
     {
       "id": "AG01",
       "titulo": "Navegar e filtrar a Agenda",
-      "trecho": "## Navegar e filtrar a Agenda\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. Selecione **Dia**, **Semana** ou **Mês**. Em **Dia**, use **Grade** ou **Lista**.\n3. Use as setas ao lado da data para avançar ou voltar. Clique em **Hoje** para retornar à data atual.\n4. Use **Profissional** para escolher quem aparece na agenda.\n5. Marque **Mostrar cancelados** se quiser ver esses atendimentos. Use **Mostrar notas** para controlar a exibição das notas.\n\nConfira o período exibido no alto da agenda. No celular, abra **Filtros** para ver as opções recolhidas.",
+      "trecho": "## Navegar e filtrar a Agenda\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. Selecione **Dia**, **Semana** ou **Mês**. Em **Dia**, use **Grade** ou **Lista**.\n3. Use as setas ao lado da data para avançar ou voltar. Clique em **Hoje** para retornar à data atual.\n4. Use **Profissional** para escolher quem aparece na agenda. Se você só vê a própria agenda e o filtro está ausente, peça ao administrador para conferir **Ver agenda de todos os profissionais** nas permissões do usuário (guia CF04).\n5. Marque **Mostrar cancelados** se quiser ver esses atendimentos. Use **Mostrar notas** para controlar a exibição das notas.\n\nConfira o período exibido no alto da agenda. No celular, abra **Filtros** para ver as opções recolhidas.",
       "referencias": [
         {
           "titulo": "Navegação, visualizações e filtros da Agenda",
@@ -1330,7 +1339,9 @@
         "Como navegar na agenda?",
         "Como filtrar a agenda por profissional?",
         "Como mostrar as notas na agenda?",
-        "Como trocar a agenda para semana ou mês?"
+        "Como trocar a agenda para semana ou mês?",
+        "Onde vejo a agenda das colegas?",
+        "Por que só aparece a minha agenda?"
       ],
       "fontes": [
         "apps/web/src/features/agenda/AgendaPage.tsx",
@@ -1759,7 +1770,7 @@
     {
       "id": "AG25",
       "titulo": "Conferir feriados e compromissos de um dia na Agenda",
-      "trecho": "## Conferir feriados e compromissos de um dia na Agenda\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. Clique em **Mês** para ver as marcações no calendário.\n3. Clique no número do dia que quer consultar.\n4. Na janela do dia, leia o aviso **Feriado** e a lista de compromissos daquele dia, quando houver.\n5. Clique em **Abrir dia na agenda** para continuar na programação diária.\n\nO nome do feriado aparece no calendário e no detalhe do dia. Se você tem acesso ao módulo **Eventos**, os eventos comerciais também aparecem na Agenda. Clique no nome de um evento na lista de compromissos para abrir os detalhes.",
+      "trecho": "## Conferir feriados e compromissos de um dia na Agenda\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. Clique em **Mês** para ver as marcações no calendário.\n3. Clique no número do dia que quer consultar.\n4. Na janela do dia, leia o aviso **Feriado** e a lista de compromissos daquele dia, quando houver.\n5. Clique em **Abrir dia na agenda** para continuar na programação diária.\n\nO nome do feriado aparece no calendário e no detalhe do dia. Para ver eventos comerciais, abra a **Agenda** pelo menu geral com acesso ao módulo **Eventos**. A Agenda aberta no contexto de um cliente oculta esses eventos. Clique no nome de um evento na lista de compromissos para abrir os detalhes.",
       "referencias": [
         {
           "titulo": "Calendário mensal e abertura do dia",
@@ -1773,7 +1784,8 @@
       "perguntas": [
         "Onde vejo se um dia é feriado na Agenda?",
         "Como conferir os compromissos de um dia no mês?",
-        "Como abrir os eventos de um dia na Agenda?"
+        "Como abrir os eventos de um dia na Agenda?",
+        "Por que o evento comercial não aparece quando abro a agenda pela ficha do cliente?"
       ],
       "fontes": [
         "apps/web/src/features/agenda/AgendaPage.tsx",
@@ -2469,7 +2481,7 @@
     {
       "id": "GR13",
       "titulo": "Trocar um aluno de turma",
-      "trecho": "## Trocar um aluno de turma\n\nO CRM não tem uma ação única de troca: cancele a matrícula na turma atual e matricule o aluno na nova turma.\n\n1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma** na turma atual do aluno.\n2. Em **Dados da turma**, localize o aluno em **Participantes** e clique em **Cancelar matrícula** na linha dele. Confira o nome na confirmação e clique em **Cancelar matrícula**.\n3. Volte a **Turmas** e clique em **Matricular cliente**.\n4. Na janela **Nova matrícula**, selecione em **Turma** a nova turma, que precisa ter vaga. Em **Cliente**, digite o nome e selecione o cadastro correto.\n5. Confira ou ajuste **Início da matrícula** e clique em **Matricular**.\n6. Na nova turma, clique em **Abrir turma** e confira se o nome aparece como **Matriculado**.\n\nSe a nova turma mostrar **turma cheia (lista de espera)** ou o botão mudar para **Colocar na lista de espera**, ela está sem vaga: escolha outra turma ou siga o fluxo de espera.",
+      "trecho": "## Trocar um aluno de turma\n\n1. Abra [**Turmas**](https://crm.organizastudios.com/turmas), confira o horário da turma de destino e clique em **Matricular cliente**.\n2. Em **Nova matrícula**, selecione a turma de destino. Se aparecer **turma cheia (lista de espera)** ou **Colocar na lista de espera**, mantenha a matrícula atual. Confirme com o aluno se deseja entrar na espera ou escolher outra turma.\n3. Havendo vaga, selecione o cadastro correto em **Cliente**, confira **Início da matrícula** e clique em **Matricular**.\n4. Na turma de destino, clique em **Abrir turma** e confirme que o aluno aparece como **Matriculado**. Se ficar em espera ou a matrícula falhar, preserve a vaga de origem.\n5. Só depois dessa confirmação, abra a turma de origem. O cancelamento encerra a matrícula hoje. Se a troca estiver marcada para uma data futura e o aluno ainda precisar frequentar a turma atual, deixe o cancelamento para a data combinada. Em **Participantes**, localize o aluno, clique em **Cancelar matrícula**, confira o nome e confirme. Se o cancelamento falhar, confira a situação nas duas turmas antes de repetir a operação.",
       "referencias": [
         {
           "titulo": "Participantes e ação de cancelar matrícula",
@@ -2484,7 +2496,8 @@
         "Como trocar um aluno de turma?",
         "Como mudar o cliente para outra turma?",
         "Como transferir um aluno para outra turma?",
-        "Como passar o aluno de uma turma para outra?"
+        "Como passar o aluno de uma turma para outra?",
+        "A aluna quer ir da turma de segunda para a de quarta, como passo ela de uma turma para outra?"
       ],
       "fontes": [
         "apps/web/src/features/groups/GroupDetailsModal.tsx",
@@ -3417,7 +3430,8 @@
       ],
       "perguntas": [
         "Onde vejo as campanhas em andamento?",
-        "Como localizar uma campanha manual concluída?"
+        "Como localizar uma campanha manual concluída?",
+        "Já criei uma campanha manual. Onde encontro ela de novo? Dá pra buscar pelo nome?"
       ],
       "fontes": [
         "apps/web/src/features/communications/campaigns/CampaignsTab.tsx"
@@ -3903,7 +3917,7 @@
     {
       "id": "CT12",
       "titulo": "Consultar os documentos enviados para um fornecedor",
-      "trecho": "## Consultar os documentos enviados para um fornecedor\n\n1. Em **Vendas de produtos**, abra **Fornecedores**, localize o fornecedor e clique em **Editar**.\n2. Abra **Documentos** e confira a seção **Documentos enviados**. Cada entrada traz o título do documento e os dados da assinatura disponíveis.\n3. Use **Ver registro** quando ele estiver disponível. Se precisar reenviar um documento ainda pendente de assinatura e o botão estiver disponível, use **WhatsApp** na entrada correspondente.\n\nSe a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatura**. Para emitir pelo cadastro do fornecedor, selecione um modelo em **Documentos** e use **Salvar e enviar pelo WhatsApp**. Preencha o **E-mail** em **Dados** se o modelo de documento exigir esse dado.",
+      "trecho": "## Consultar os documentos enviados para um fornecedor\n\n1. Em **Vendas de produtos**, abra **Fornecedores**, localize o fornecedor e clique em **Editar**.\n2. Abra **Documentos** e confira a seção **Documentos enviados**. Cada entrada traz o título do documento e os dados da assinatura disponíveis.\n3. Use **Ver registro** quando ele estiver disponível. Se precisar reenviar um documento ainda pendente de assinatura e o botão estiver disponível, use **WhatsApp** na entrada correspondente.\n\nSe a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatura**. Para emitir pelo cadastro do fornecedor, selecione um modelo em **Documentos**. Para um fornecedor já salvo, com os dados inalterados e sem pedido aberto para edição, clique em **Enviar pelo WhatsApp**. Para um fornecedor novo, com dados alterados ou com pedido aberto, clique em **Salvar e enviar pelo WhatsApp**. Preencha o **E-mail** em **Dados** se o modelo de documento exigir esse dado.",
       "referencias": [
         {
           "titulo": "Cadastro do fornecedor",
@@ -3940,7 +3954,8 @@
       "perguntas": [
         "Como assinar um contrato recebido por link?",
         "Como assino um contrato pelo celular?",
-        "Onde desenho minha assinatura no contrato?"
+        "Onde desenho minha assinatura no contrato?",
+        "Recebi o contrato num link. Onde assino pelo celular?"
       ],
       "fontes": [
         "apps/web/src/features/contracts/PublicSignaturePage.tsx",
@@ -4245,7 +4260,8 @@
       "perguntas": [
         "Como registrar um recebimento parcial?",
         "Como dar baixa só em parte da parcela?",
-        "Onde informo o valor recebido quando o cliente pagou uma parte?"
+        "Onde informo o valor recebido quando o cliente pagou uma parte?",
+        "Entrou só um pedaço do que a cliente devia. Onde lanço esse valor?"
       ],
       "fontes": [
         "apps/web/src/features/finance/SettleModal.tsx",
@@ -4350,8 +4366,12 @@
     {
       "id": "FI09",
       "titulo": "Preparar o envio do link de assinatura de um recibo",
-      "trecho": "## Preparar o envio do link de assinatura de um recibo\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.\n2. Selecione **Pagas** e localize a parcela pelo cliente, descrição e valor.\n3. Clique em **Recibo** na linha correta.\n4. Confira os dados e clique em **Enviar recibo pelo WhatsApp**.\n5. Confira a conversa e a mensagem com o link de assinatura antes de enviar.\n\nO cliente abre o link para conferir e assinar o recibo. Volte à seção **Assinatura do recibo** para ver a situação registrada no CRM.",
+      "trecho": "## Preparar o envio do link de assinatura de um recibo\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.\n2. Selecione **Pagas** e localize a parcela pelo cliente, descrição e valor.\n3. Clique em **Recibo** na linha correta.\n4. Confira os dados e clique em **Enviar recibo pelo WhatsApp**.\n5. Confira a conversa e a mensagem com o link de assinatura antes de enviar.\n\nO cliente abre o link para conferir e assinar o recibo. Volte à seção **Assinatura do recibo** para ver a situação registrada no CRM. Se a intenção for apenas revogar um link enviado por engano, o manual não confirma uma ação independente para isso. Preserve o lançamento financeiro: estornar a baixa desfaz o recebimento e cancela o recibo.",
       "referencias": [
+        {
+          "titulo": "Cancelamento do recibo quando a baixa é estornada",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/api/src/modules/finance/receipt-signatures.ts"
+        },
         {
           "titulo": "Link e acompanhamento no recibo",
           "url": "https://github.com/Bren0-lz/crm-studios/blob/998ecf81eb1679138cfa11c6bb3f60496ca14e91/apps/web/src/features/finance/ReceiptModal.tsx"
@@ -4360,9 +4380,11 @@
       "perguntas": [
         "Como enviar recibo para assinatura pelo WhatsApp?",
         "Onde fica o link para o cliente assinar o recibo?",
-        "Como compartilhar a assinatura de um recibo?"
+        "Como compartilhar a assinatura de um recibo?",
+        "Enviei o link do recibo por engano. Posso revogar só o link e manter o recebimento?"
       ],
       "fontes": [
+        "apps/api/src/modules/finance/receipt-signatures.ts",
         "apps/web/src/features/finance/ReceiptModal.tsx"
       ]
     },
@@ -4600,7 +4622,9 @@
       "perguntas": [
         "Como estornar o pagamento de uma despesa?",
         "Como desfazer um pagamento em Contas a pagar?",
-        "Onde registro por que estou estornando uma despesa?"
+        "Onde registro por que estou estornando uma despesa?",
+        "Marquei uma despesa como paga por engano. Como desfaço o pagamento?",
+        "Paguei uma conta de fornecedor por engano, como estorno?"
       ],
       "fontes": [
         "apps/web/src/features/finance/PayablesList.tsx",
