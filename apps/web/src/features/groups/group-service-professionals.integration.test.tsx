@@ -113,7 +113,7 @@ describe("new group professionals", () => {
   it("lists only the professionals who serve the chosen service", async () => {
     setup();
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
-    const dialog = screen.getByRole("dialog", { name: "Nova turma" });
+    const dialog = await screen.findByRole("dialog", { name: "Nova turma" });
     fireEvent.change(within(dialog).getByLabelText("Serviço"), {
       target: { value: pilates },
     });

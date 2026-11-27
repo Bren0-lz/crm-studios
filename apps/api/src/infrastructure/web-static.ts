@@ -22,6 +22,19 @@ const contentTypes: Record<string, string> = {
   ".txt": "text/plain; charset=utf-8",
 };
 
+/**
+ * Proteções do navegador em toda página do site: não pode ser embutido em outro domínio
+ * (clickjacking), HTTPS obrigatório depois da 1ª visita (o navegador ignora em http://) e sem
+ * enviar o caminho completo como referência para outros sites.
+ */
+export const siteSecurityHeaders = {
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "SAMEORIGIN",
+  "content-security-policy": "frame-ancestors 'self'",
+  "strict-transport-security": "max-age=31536000",
+  "referrer-policy": "strict-origin-when-cross-origin",
+} as const;
+
 async function fileAt(path: string) {
   try {
     const info = await stat(path);
@@ -64,7 +77,10 @@ export function createWebHandler(rootDir: string) {
       info = await fileAt(indexPath);
     }
     if (!path || !info) {
-      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      res.writeHead(404, {
+        ...siteSecurityHeaders,
+        "content-type": "text/plain; charset=utf-8",
+      });
       res.end("Não encontrado");
       return;
     }
@@ -75,7 +91,7 @@ export function createWebHandler(rootDir: string) {
       "cache-control": pathname.startsWith("/assets/")
         ? "public, max-age=31536000, immutable"
         : "no-cache",
-      "x-content-type-options": "nosniff",
+      ...siteSecurityHeaders,
     });
     if (req.method === "HEAD") {
       res.end();

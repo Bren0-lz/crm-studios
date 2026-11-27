@@ -59,6 +59,23 @@ describe("web static handler", () => {
     }
   });
 
+  it("sends the browser protections on pages and missing files", async () => {
+    for (const path of ["/", "/assets/app-1a2b.js", "/nao-existe.png"]) {
+      const response = await fetch(`${origin}${path}`);
+      expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+      expect(response.headers.get("content-security-policy")).toBe(
+        "frame-ancestors 'self'",
+      );
+      expect(response.headers.get("strict-transport-security")).toBe(
+        "max-age=31536000",
+      );
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(response.headers.get("referrer-policy")).toBe(
+        "strict-origin-when-cross-origin",
+      );
+    }
+  });
+
   it("answers 404 for missing files and never leaves the site folder", async () => {
     expect((await fetch(`${origin}/assets/missing.js`)).status).toBe(404);
     expect((await fetch(`${origin}/%2e%2e/secret.txt`)).status).toBe(404);

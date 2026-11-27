@@ -3,7 +3,7 @@ import { jsonResponse } from "../../test-support/http";
 import { ApiClientError } from "./ApiClientError";
 import { login } from "./login";
 import { clearSession, getStoredUser, hasSession, storeUser } from "./session";
-import { request, requestBlob } from "./transport";
+import { NETWORK_ERROR_MESSAGE, request, requestBlob } from "./transport";
 
 const user = {
   id: "22222222-2222-4222-8222-222222222222",
@@ -166,8 +166,65 @@ describe("HTTP transport and session", () => {
   it("propagates network failures without removing the session", async () => {
     localStorage.setItem("crm.auth.token", "token");
     vi.mocked(fetch).mockRejectedValue(new TypeError("Failed to fetch"));
-    await expect(request("/patients")).rejects.toThrow("Failed to fetch");
+    const error = await request("/patients").catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect(error).toMatchObject({
+      message: NETWORK_ERROR_MESSAGE,
+      code: "NETWORK_ERROR",
+      status: 0,
+    });
+    await expect(requestBlob("/patients/export")).rejects.toThrow(
+      NETWORK_ERROR_MESSAGE,
+    );
     expect(hasSession()).toBe(true);
+  });
+
+  it("keeps a cancelled request as an AbortError", async () => {
+    vi.mocked(fetch).mockRejectedValue(
+      new DOMException("Aborted", "AbortError"),
+    );
+    await expect(request("/patients")).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
+
+  it("explains an HTML error page from the hosting instead of a JSON parse error", async () => {
+    const page = () =>
+      new Response("<html>Bad Gateway</html>", {
+        status: 502,
+        headers: { "Content-Type": "text/html" },
+      });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce(page());
+    await expect(request("/patients")).rejects.toMatchObject({
+      message:
+        "O servidor está indisponível no momento. Tente novamente em instantes.",
+      code: "UNKNOWN_ERROR",
+      status: 502,
+    });
+    await expect(requestBlob("/patients/export")).rejects.toThrow(
+      "O servidor está indisponível no momento.",
+    );
+  });
+
+  it("explains an oversized upload rejected by the proxy", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response("<html>Request Entity Too Large</html>", { status: 413 }),
+    );
+    await expect(
+      request("/patients/import", { method: "POST", body: "{}" }),
+    ).rejects.toThrow("Os dados enviados são grandes demais.");
+  });
+
+  it("rejects a successful response that is not JSON with a clear message", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response("<html>manutenção</html>", { status: 200 }),
+    );
+    await expect(request("/patients")).rejects.toMatchObject({
+      message: "Resposta inesperada do servidor. Tente novamente.",
+      code: "INVALID_RESPONSE",
+    });
   });
 
   it("stores a successful login and discards corrupted stored users", async () => {

@@ -159,6 +159,13 @@ export async function createRouteContext({
 
   await app.register(jwt, { secret: config.JWT_SECRET });
 
+  // Respostas da API nunca são renderizadas nem embutidas pelo navegador.
+  app.addHook("onRequest", async (_request, reply) => {
+    reply.header("x-content-type-options", "nosniff");
+    reply.header("x-frame-options", "DENY");
+    reply.header("referrer-policy", "strict-origin-when-cross-origin");
+  });
+
   // Cada requisição ganha o próprio contexto de filial (gravado no `authenticate`).
   app.addHook("onRequest", (_request, _reply, done) =>
     repository.branchScope.open(done),
