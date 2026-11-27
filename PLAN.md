@@ -2278,3 +2278,155 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   modais com o campo "Motivo". Testes API (memória e MySQL) e web.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
+
+## Rodada 12 — Paginação no servidor e consultas leves (pedido do dono, 27/11/2026)
+
+Só o funil do Comercial (`/leads/board`, offset + total) e o Histórico (`/history/audit-events`,
+cursor) paginam no servidor. As demais abas baixam a tabela inteira da clínica e filtram no
+navegador (Clientes pagina só no navegador). Alguns GETs leem todo o histórico a cada chamada —
+o pior é `/notifications`, chamado em toda página.
+
+### Decisões do dono (27/11/2026)
+
+- Navegação **Anterior/Próxima** com "Página X de Y · N itens" (total contado no servidor).
+- Entram: Clientes, Financeiro, Planos/Contratos/Vendas e as listas operacionais (A finalizar,
+  Lista de espera, Relacionamento, Prontuários, Eventos), mais os agregados pesados (PA1–PA4).
+- Uma tarefa = um branch de `origin/main` = um PR.
+
+### Regras da rodada
+
+- **Compatível**: endpoints que hoje devolvem array continuam iguais (a API externa em
+  `modules/external/endpoints.ts` faz proxy de `/plans`, `/waitlist`, `/finance/summary`…). A
+  paginação entra em rotas novas `GET /<recurso>/page`, que a web passa a usar.
+- Busca, filtros e ordenação no **SQL**: `WHERE` + `ORDER BY <col>, id` estável + `LIMIT/OFFSET`
+  + `COUNT(*)` com os mesmos filtros (molde: `listLeadStagePage` em `storage/mysql/commercial.ts`).
+  A memória espelha com `filter/sort/slice`.
+- Contagens de chips e cartões vêm de endpoint de contagem no SQL, nunca do array da página.
+- Dado de um cliente só (ficha, modais) é pedido por `patientId` ao servidor.
+- Índice novo, se preciso, em migração **nova** (número pelas regras do CLAUDE.md).
+- Testes: API (memória), MySQL opt-in, web. Prova mínima: 30 registros, `limit=25` → 25 itens e
+  `total=30`, `offset=25` → 5; filtro muda o `total`; na web "Página 1 de 2", "Próxima" pede
+  `offset=25` e mudar filtro volta à página 1 (molde: `kanban-pagination.integration.test.tsx`).
+- Financeiro é arquivo quente: PG3 → PG4 → PA2 em sequência (ou empilhados, "depende do #N").
+  Todas dependem de PG1.
+
+### PG1 — Base de paginação
+
+- **Escopo:** `packages/contracts/src/common/pagination.ts` com `listPageSchema` (`offset`
+  0..100000, `limit` 1..100, padrão 25; `leadPageSchema` passa a reaproveitá-lo sem mudar o padrão
+  30 do funil), `ListPage<T> { items, total, offset, limit }` e `paginateArray(items, page)` para a
+  memória; export no `index.ts`. Helper `readPage(client, { countSql, rowsSql, params, page })` em
+  `storage/mysql/sql.ts`. Web: `shared/components/ListPagination.tsx` extraído do nav de
+  `PatientsPage` (classes `.list-pagination` existentes; Clientes passa a usá-lo, ainda no
+  navegador) e hook `shared/hooks/usePagedList.ts` (filtro volta à página 1, debounce de busca,
+  descarta resposta velha, carregando/vazio/erro). `test-support/paged-list.ts` com
+  `pagedResponse(input, items)`. Testes unitários do helper, componente e hook.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### PG2 — Clientes paginados no servidor
+
+- **Escopo:** `GET /patients/page` com busca, status, tipo de cadastro, etiquetas, campos de
+  perfil, `withoutGroup`, segmento (ids resolvidos no servidor) e ordenação no SQL;
+  `GET /patients/tag-counts` (com os mesmos filtros) e `GET /patients/filter-options` (DISTINCT,
+  como `buildLeadFilterOptions`). `PatientsPage` e `PatientProfileFilters` migram. `/patients` e a
+  exportação continuam completos.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PG3 — Financeiro: contas a receber paginadas
+
+- **Escopo:** `GET /finance/receivables/page` (situação, período, busca, filial, `patientId`) e
+  contagem por situação no SQL; `ReceivablesList` migra. Ações (baixar, estornar) deixam de
+  depender do array completo do workspace.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PG4 — Financeiro: contas a pagar e comissões paginadas
+
+- **Escopo:** `GET /finance/payables/page` e `GET /finance/commissions/page` com filtros no SQL e
+  resumos agregados no SQL; `PayablesList`, `PayablesSummary` e `CommissionsList` migram.
+  Depende de PG3.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PG5 — Planos paginados
+
+- **Escopo:** `GET /plans/page` (busca, situação, `patientId`) e `GET /plans/metrics` (ativos,
+  sessões disponíveis, saldo baixo) no SQL; rótulo de renovação calculado no servidor por linha
+  (hoje `planRenewalLabel(plan, plans)` usa a lista inteira). `PlansPage` migra.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PG6 — Contratos paginados e leves
+
+- **Escopo:** `GET /documents/page` (busca, situação, modelo, `patientId`) **sem** corpo,
+  snapshot nem branding; corpo só ao abrir o documento. `PatientRecordTabs` e `ClientPendingModal`
+  pedem `/documents?patientId=` em vez de filtrar a lista toda. `DocumentsPage` migra.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PG7 — Vendas paginadas
+
+- **Escopo:** `GET /sales/history/page` (período e busca no SQL) e resumo de vendas agregado no
+  SQL. Dependentes de `inventoryWorkspace.tabs` (`SalesSummarySection`, `PatientModal`,
+  `supplier-order-draft`) passam a endpoints próprios; `tabs` sai do workspace se não sobrar
+  dependente (conferir a API externa).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PG8 — A finalizar e Lista de espera paginadas
+
+- **Escopo:** `GET /appointments/pending-finalization/page` (busca e filtros no SQL; "Selecionar
+  todos" vale para a página, com o texto deixando isso claro) e `GET /waitlist/page` com cartões
+  de demanda e opções de filtro agregados no SQL. `PendingFinalizationPage` e `WaitlistPage`
+  migram.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PG9 — Prontuários, Eventos e Relacionamento paginados
+
+- **Escopo:** a lista de clientes de Prontuários usa busca e página no servidor (hoje carrega
+  `patientOptions()` inteiro); `GET /events/page`; sugestões de Relacionamento paginadas, com o
+  filtro de motivo no servidor (`BirthdayDashboardCard` pede só aniversários).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PG10 — Ficha do cliente só com os dados dela
+
+- **Escopo:** `PatientRecordTabs`, `ClientPendingModal`, `OverduePaymentDetailsModal` e
+  `PlanPaymentStep` pedem planos, atendimentos, recebíveis e documentos por `patientId` (novos
+  parâmetros opcionais onde faltar) em vez de carregar tudo e filtrar no navegador.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PA1 — Notificações com contagens no SQL
+
+- **Escopo:** `GET /notifications` deixa de carregar 11 listas completas (financeiro, planos,
+  leads, sugestões, estoque, turmas…): método novo `getNotificationCounts` nos dois repositórios,
+  com `COUNT` por categoria. Resposta igual à de hoje (teste de equivalência na memória).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PA2 — Resumo financeiro em janela
+
+- **Escopo:** `/finance/summary` e os totais do `/finance/workspace` agregados no SQL por mês, sem
+  ler todo o histórico; o workspace deixa de mandar as listas completas que PG3/PG4 tornaram
+  desnecessárias (a API externa de `/finance/summary` mantém o formato). Depende de PG4.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PA3 — Sugestões de relacionamento em janela
+
+- **Escopo:** `listContactSuggestions` lê atendimentos só de uma janela (ex.: últimos 12 meses;
+  valor a confirmar na triagem) e calcula os motivos no SQL, sem carregar todos os atendimentos,
+  recebíveis e planos. Depende de PG9.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### PA4 — Relatório de retenção pelo período
+
+- **Escopo:** `/reports/retention` lê só o período do filtro (hoje lê atendimentos de 1900 a 9999)
+  e agrega no SQL.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
